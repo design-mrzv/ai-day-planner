@@ -37,3 +37,21 @@ export function saveOnboardingDone(): void {
     console.error("Failed to save onboarding flag to localStorage", error);
   }
 }
+
+const INBOX_KEY = "inbox_enabled";
+
+export function loadInboxEnabled(): boolean {
+  try {
+    return localStorage.getItem(INBOX_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function saveInboxEnabled(value: boolean): void {
+  try {
+    localStorage.setItem(INBOX_KEY, value ? "true" : "false");
+  } catch (error) {
+    console.error("Failed to save inbox setting to localStorage", error);
+  }
+}
