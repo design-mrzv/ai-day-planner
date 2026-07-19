@@ -2,16 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Working end-to-end flow — Today screen with hardcoded tasks, a Capture bottom sheet that sends free text to an Anthropic-powered API route, and the parsed tasks appearing in Today.
+**Goal:** Working end-to-end flow — Today screen with hardcoded tasks, a Capture bottom sheet that sends free text to a Gemini-powered API route, and the parsed tasks appearing in Today.
 
-**Architecture:** Next.js App Router client components (`page.tsx`, `TaskCard`, `CaptureSheet`) hold task state in `useState`. A server-side Route Handler (`app/api/parse/route.ts`) calls the Anthropic SDK with the exact prompt from `PRODUCT_SPEC.md` §8, validates/normalizes the JSON response with a pure helper module, and returns parsed tasks or a human-readable error. shadcn/ui (`Button`, `Textarea`, `Drawer` built on `vaul`) provides the bottom-sheet UI.
+**Architecture:** Next.js App Router client components (`page.tsx`, `TaskCard`, `CaptureSheet`) hold task state in `useState`. A server-side Route Handler (`app/api/parse/route.ts`) calls the Google GenAI SDK (Gemini Flash) with the exact prompt from `PRODUCT_SPEC.md` §8, validates/normalizes the JSON response with a pure helper module, and returns parsed tasks or a human-readable error. shadcn/ui (`Button`, `Textarea`, `Drawer` built on `vaul`) provides the bottom-sheet UI.
 
-**Tech Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui (Drawer built on `@base-ui/react`), `@anthropic-ai/sdk`.
+**Tech Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui (Drawer built on `@base-ui/react`), `@google/genai`.
+
+> **Provider swap (2026-07-19):** `PRODUCT_SPEC.md` §1 was updated mid-implementation — Anthropic Console payment never went through, so the AI provider changed from `claude-haiku-4-5` / `ANTHROPIC_API_KEY` to **Gemini Flash** / `GEMINI_API_KEY` (Google AI Studio, no card required). The prompt and JSON contract are unchanged; only the SDK call in Task 3 differs from what's described below. If Anthropic billing gets resolved, swapping back only touches `src/app/api/parse/route.ts`.
 
 ## Global Constraints
 
-- API key lives only in `ANTHROPIC_API_KEY` env var, never hardcoded or sent to the client (`PRODUCT_SPEC.md` §1, §5).
-- Model: `claude-haiku-4-5-20251001` (the current Haiku 4.5 model id; `PRODUCT_SPEC.md` §1 refers to it by family name "claude-haiku-4-5").
+- API key lives only in `GEMINI_API_KEY` env var, never hardcoded or sent to the client (`PRODUCT_SPEC.md` §1, §5).
+- Model: `gemini-2.5-flash` (per `PRODUCT_SPEC.md` §8's provider note and user's explicit choice between `gemini-2.5-flash` and `gemini-2.5-flash-lite`).
 - Prompt text must match `PRODUCT_SPEC.md` §8 verbatim, with `{USER_INPUT}` replaced by the user's raw text.
 - Every AI-failure path (invalid JSON, network error, empty result) shows the same user-facing copy: **"Не вдалося обробити, спробуй ще раз"** (per design doc `docs/superpowers/specs/2026-07-18-phase-2-capture-parse-design.md`).
 - No localStorage, Welcome/onboarding, Settings, or Inbox in this phase — explicitly out of scope per user instruction.
@@ -340,6 +342,8 @@ EOF
 ---
 
 ### Task 3: `/api/parse` Route Handler
+
+> **Note:** the code samples below were written before the provider swap and still show `@anthropic-ai/sdk`. As executed, the route handler uses `@google/genai`'s `GoogleGenAI` client, `client.models.generateContent({ model: "gemini-2.5-flash", contents: buildPrompt(text) })`, reads `response.text` for the raw output, and reads the key from `GEMINI_API_KEY`. `parse-response.ts`, the prompt text, and the response contract (`{ tasks: ParsedTask[] }` / `{ error: string }`) are unchanged.
 
 **Files:**
 - Create: `src/lib/parse-response.ts`

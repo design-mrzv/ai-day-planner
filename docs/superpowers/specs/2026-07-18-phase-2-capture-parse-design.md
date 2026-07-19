@@ -2,13 +2,15 @@
 
 > Джерело вимог: `PRODUCT_SPEC.md`, розділ 8, кроки 2-4.
 > Мета: перший наскрізний сценарій "текст → задачі на екрані" працює. Без localStorage, Settings, Inbox.
+>
+> **Оновлення 2026-07-19:** AI-провайдер змінено з Anthropic (`claude-haiku-4-5`) на Gemini Flash (`gemini-2.5-flash`, Google AI Studio) через непройдену оплату Anthropic Console — див. `PRODUCT_SPEC.md` §1. Промпт і JSON-контракт не змінились, ключ тепер `GEMINI_API_KEY`.
 
 ## Архітектура
 
 - `src/app/page.tsx` — Today екран: заголовок "Today", поточна дата, список задач (`useState<Task[]>`, старт з 1-2 хардкоджених задач), FAB "+", порожній стан.
 - `src/components/task-card.tsx` — картка задачі: чекбокс, назва, час (якщо є), лейбл-тег (work/personal), індикатор пріоритету кольором, дедлайн (якщо не сьогодні), тап розгортає description.
 - `src/components/capture-sheet.tsx` — bottom sheet на базі `vaul` Drawer: великий textarea з плейсхолдером "Що в голові?...", підказка сірим "Пиши все підряд, ми в цьому розберемось", кнопка "Обробити" (неактивна при порожньому тексті), loading-стан "Ми будуємо твій план..." з анімацією, error-стан.
-- `src/app/api/parse/route.ts` — Next.js Route Handler (server-side): приймає `{ text: string }`, викликає Anthropic SDK (`claude-haiku-4-5`, ключ з `ANTHROPIC_API_KEY` env) з промптом із розділу 8 спеку, парсить JSON з відповіді, повертає масив задач або помилку.
+- `src/app/api/parse/route.ts` — Next.js Route Handler (server-side): приймає `{ text: string }`, викликає Google GenAI SDK (`gemini-2.5-flash`, ключ з `GEMINI_API_KEY` env) з промптом із розділу 8 спеку, парсить JSON з відповіді, повертає масив задач або помилку.
 - `src/lib/types.ts` — тип `Task` (title, priority, deadline, time, label, description) + `id`, `done` для UI-стану.
 
 **Потік даних:** Capture textarea → `POST /api/parse` → масив задач у JSON → `setTasks(prev => [...prev, ...parsed])` у `page.tsx` → Drawer закривається → нові картки з'являються в Today.
