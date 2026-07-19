@@ -26,6 +26,8 @@ interface UndoState {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+const STAGGER_STEP_MS = 40;
+
 function todayLabel(): string {
   return new Intl.DateTimeFormat("uk-UA", {
     day: "numeric",
@@ -183,23 +185,23 @@ export default function Home() {
   const visibleTasks = sortTasks(tasks.filter((task) => !task.done));
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
+    <div className="flex min-h-screen flex-col bg-bg-base">
       <header className="flex items-start justify-between px-4 pt-8 pb-4">
         <div>
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-            Today
+          <h1 className="font-heading text-[32px] leading-9 font-bold tracking-tight text-text-primary">
+            Сьогодні
           </h1>
-          <p className="mt-1 text-sm capitalize text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm font-medium capitalize text-text-secondary">
             {todayLabel()}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setScreen("settings")}
-          aria-label="Settings"
-          className="mt-1 text-zinc-600 dark:text-zinc-400"
+          aria-label="Налаштування"
+          className="mt-1.5 text-text-secondary transition-transform duration-150 active:scale-95"
         >
-          <SettingsIcon size={24} />
+          <SettingsIcon size={22} />
         </button>
       </header>
 
@@ -207,29 +209,37 @@ export default function Home() {
         {visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center gap-3 pt-24 text-center">
             <span className="text-4xl">📝</span>
-            <p className="max-w-xs text-zinc-600 dark:text-zinc-400">
+            <p className="max-w-xs text-text-secondary">
               Що плануєш сьогодні? Натисни + і розкажи все що в голові
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {visibleTasks.map((task) => (
-              <TaskCard key={task.id} task={task} onToggleDone={handleComplete} />
+            {visibleTasks.map((task, index) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onToggleDone={handleComplete}
+                animationDelayMs={index * STAGGER_STEP_MS}
+              />
             ))}
           </div>
         )}
       </main>
 
-      <button
-        type="button"
-        onClick={() => setSheetOpen(true)}
-        className={`fixed bottom-6 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-900 text-2xl text-white shadow-lg dark:bg-zinc-50 dark:text-zinc-900 ${
-          visibleTasks.length === 0 ? "animate-pulse" : ""
-        }`}
-        aria-label="Додати задачі"
-      >
-        +
-      </button>
+      <div className="fixed bottom-6 right-4">
+        {visibleTasks.length === 0 && (
+          <span className="animate-pulse-ring absolute inset-0 rounded-full bg-accent-tint" />
+        )}
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-[0_10px_24px_rgba(181,80,47,0.35)] transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 active:scale-95"
+          aria-label="Додати задачі"
+        >
+          +
+        </button>
+      </div>
 
       {undoState && <UndoToast onUndo={handleUndo} />}
 

@@ -33,12 +33,17 @@ export function CaptureSheet({
   const [isOpening, setIsOpening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Syncing isOpening to the `open` prop from an external trigger (the FAB),
+  // not deriving it from other React state, so this isn't the "you might not
+  // need an effect" case the lint rule assumes.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
     setIsOpening(true);
     const timeoutId = setTimeout(() => setIsOpening(false), OPENING_GUARD_MS);
     return () => clearTimeout(timeoutId);
   }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleSubmit() {
     setStatus("loading");

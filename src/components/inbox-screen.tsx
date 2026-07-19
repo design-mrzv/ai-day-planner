@@ -33,6 +33,14 @@ interface InboxScreenProps {
   onBack: () => void;
 }
 
+function pillClass(selected: boolean): string {
+  return `rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-150 ${
+    selected
+      ? "border border-accent bg-accent-tint text-accent"
+      : "border border-transparent bg-[#F0EBE3] text-text-secondary hover:bg-accent-tint hover:text-accent"
+  }`;
+}
+
 export function InboxScreen({
   tasks,
   onChangeTask,
@@ -41,19 +49,16 @@ export function InboxScreen({
   onBack,
 }: InboxScreenProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
+    <div className="flex min-h-screen flex-col bg-bg-base">
       <header className="px-4 pt-8 pb-4">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+        <h1 className="font-heading text-xl font-semibold tracking-tight text-text-primary">
           Ось що ми знайшли
         </h1>
       </header>
 
       <main className="flex-1 space-y-3 px-4 pb-28">
         {tasks.map((task, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-          >
+          <div key={index} className="flex flex-col gap-3 rounded-card bg-surface p-4">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -61,12 +66,12 @@ export function InboxScreen({
                 onChange={(event) =>
                   onChangeTask(index, { title: event.target.value })
                 }
-                className="w-full flex-1 rounded-md border border-zinc-200 px-3 py-2 text-base dark:border-zinc-700 dark:bg-zinc-900"
+                className="w-full flex-1 rounded-input border border-accent-border bg-accent-tint px-3 py-2 text-base text-text-primary"
               />
               <DropdownMenu>
                 <DropdownMenuTrigger
                   aria-label="Опції задачі"
-                  className="shrink-0 rounded-full p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="shrink-0 rounded-full p-2 text-text-secondary hover:bg-[#F0EBE3]"
                 >
                   <MoreVertical size={18} />
                 </DropdownMenuTrigger>
@@ -87,11 +92,7 @@ export function InboxScreen({
                   key={option.value}
                   type="button"
                   onClick={() => onChangeTask(index, { priority: option.value })}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    task.priority === option.value
-                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  }`}
+                  className={pillClass(task.priority === option.value)}
                 >
                   {option.label}
                 </button>
@@ -104,11 +105,7 @@ export function InboxScreen({
                   key={option.value}
                   type="button"
                   onClick={() => onChangeTask(index, { label: option.value })}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    task.label === option.value
-                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  }`}
+                  className={pillClass(task.label === option.value)}
                 >
                   {option.label}
                 </button>
@@ -121,11 +118,7 @@ export function InboxScreen({
                   key={option.value}
                   type="button"
                   onClick={() => onChangeTask(index, { deadline: option.value })}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    task.deadline === option.value
-                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                  }`}
+                  className={pillClass(task.deadline === option.value)}
                 >
                   {option.label}
                 </button>
@@ -135,18 +128,18 @@ export function InboxScreen({
         ))}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-zinc-50 px-4 py-4 dark:bg-black">
+      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-bg-base px-4 py-4">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-full border border-zinc-300 py-3 text-base font-medium text-zinc-900 dark:border-zinc-700 dark:text-zinc-50"
+          className="flex-1 rounded-full border border-[#E3DCD3] py-3 text-base font-semibold text-text-primary transition-transform duration-150 active:scale-[0.98]"
         >
           Назад
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className="flex-1 rounded-full bg-zinc-900 py-3 text-base font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+          className="flex-1 rounded-full bg-accent py-3 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
         >
           Додати все в Today
         </button>
