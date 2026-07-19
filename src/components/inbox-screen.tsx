@@ -1,5 +1,12 @@
 "use client";
 
+import { MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label, ParsedTask, Priority } from "@/lib/types";
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
@@ -13,9 +20,15 @@ const LABEL_OPTIONS: { value: Label; label: string }[] = [
   { value: "personal", label: "Особисте" },
 ];
 
+const DEADLINE_OPTIONS: { value: "today" | "tomorrow"; label: string }[] = [
+  { value: "today", label: "Сьогодні" },
+  { value: "tomorrow", label: "Завтра" },
+];
+
 interface InboxScreenProps {
   tasks: ParsedTask[];
   onChangeTask: (index: number, patch: Partial<ParsedTask>) => void;
+  onDeleteTask: (index: number) => void;
   onConfirm: () => void;
   onBack: () => void;
 }
@@ -23,6 +36,7 @@ interface InboxScreenProps {
 export function InboxScreen({
   tasks,
   onChangeTask,
+  onDeleteTask,
   onConfirm,
   onBack,
 }: InboxScreenProps) {
@@ -38,16 +52,34 @@ export function InboxScreen({
         {tasks.map((task, index) => (
           <div
             key={index}
-            className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+            className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
           >
-            <input
-              type="text"
-              value={task.title}
-              onChange={(event) =>
-                onChangeTask(index, { title: event.target.value })
-              }
-              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-base dark:border-zinc-700 dark:bg-zinc-900"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={task.title}
+                onChange={(event) =>
+                  onChangeTask(index, { title: event.target.value })
+                }
+                className="w-full flex-1 rounded-md border border-zinc-200 px-3 py-2 text-base dark:border-zinc-700 dark:bg-zinc-900"
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="Опції задачі"
+                  className="shrink-0 rounded-full p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <MoreVertical size={18} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onDeleteTask(index)}
+                  >
+                    Видалити задачу
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
             <div className="flex flex-wrap gap-1.5">
               {PRIORITY_OPTIONS.map((option) => (
@@ -74,6 +106,23 @@ export function InboxScreen({
                   onClick={() => onChangeTask(index, { label: option.value })}
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
                     task.label === option.value
+                      ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {DEADLINE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChangeTask(index, { deadline: option.value })}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    task.deadline === option.value
                       ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                       : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                   }`}

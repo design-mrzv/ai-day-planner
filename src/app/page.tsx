@@ -7,6 +7,7 @@ import { CaptureSheet } from "@/components/capture-sheet";
 import { WelcomeScreen } from "@/components/welcome-screen";
 import { SettingsScreen } from "@/components/settings-screen";
 import { InboxScreen } from "@/components/inbox-screen";
+import { UndoToast } from "@/components/undo-toast";
 import {
   loadInboxEnabled,
   loadOnboardingDone,
@@ -15,9 +16,15 @@ import {
   saveOnboardingDone,
   saveTasks,
 } from "@/lib/storage";
+import { sortTasks } from "@/lib/sort-tasks";
 import { ParsedTask, Task } from "@/lib/types";
 
 type Screen = "today" | "settings" | "inbox";
+
+interface UndoState {
+  task: Task;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat("uk-UA", {
@@ -40,6 +47,7 @@ export default function Home() {
   const [pendingInboxTasks, setPendingInboxTasks] = useState<ParsedTask[] | null>(
     null
   );
+  const [undoState, setUndoState] = useState<UndoState | null>(null);
 
   // localStorage isn't available during SSR, so hydrating from it must
   // happen in an effect rather than a useState initializer.
@@ -57,12 +65,33 @@ export default function Home() {
     }
   }, [tasks]);
 
-  function handleToggleDone(id: string) {
+  function handleComplete(id: string) {
+    const target = (tasks ?? []).find((task) => task.id === id);
+    if (!target) return;
+
     setTasks((prev) =>
-      (prev ?? []).map((task) =>
-        task.id === id ? { ...task, done: !task.done } : task
-      )
+      (prev ?? []).map((task) => (task.id === id ? { ...task, done: true } : task))
     );
+
+    setUndoState((prev) => {
+      if (prev) clearTimeout(prev.timeoutId);
+      const timeoutId = setTimeout(() => setUndoState(null), 4000);
+      return { task: target, timeoutId };
+    });
+  }
+
+  function handleUndo() {
+    setUndoState((prev) => {
+      if (!prev) return prev;
+      clearTimeout(prev.timeoutId);
+      const taskId = prev.task.id;
+      setTasks((tasksPrev) =>
+        (tasksPrev ?? []).map((task) =>
+          task.id === taskId ? { ...task, done: false } : task
+        )
+      );
+      return null;
+    });
   }
 
   function handleParsed(parsedTasks: ParsedTask[]) {
@@ -85,6 +114,10 @@ export default function Home() {
     setPendingInboxTasks((prev) =>
       (prev ?? []).map((task, i) => (i === index ? { ...task, ...patch } : task))
     );
+  }
+
+  function handleDeleteInboxTask(index: number) {
+    setPendingInboxTasks((prev) => (prev ?? []).filter((_, i) => i !== index));
   }
 
   function handleConfirmInbox() {
@@ -140,11 +173,14 @@ export default function Home() {
       <InboxScreen
         tasks={pendingInboxTasks}
         onChangeTask={handleChangeInboxTask}
+        onDeleteTask={handleDeleteInboxTask}
         onConfirm={handleConfirmInbox}
         onBack={handleBackFromInbox}
       />
     );
   }
+
+  const visibleTasks = sortTasks(tasks.filter((task) => !task.done));
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
@@ -153,30 +189,32 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
             Today
           </h1>
-          <p className="mt-1 text-sm capitalize text-zinc-500">{todayLabel()}</p>
+          <p className="mt-1 text-sm capitalize text-zinc-600 dark:text-zinc-400">
+            {todayLabel()}
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setScreen("settings")}
           aria-label="Settings"
-          className="mt-1 text-zinc-500"
+          className="mt-1 text-zinc-600 dark:text-zinc-400"
         >
           <SettingsIcon size={24} />
         </button>
       </header>
 
       <main className="flex-1 px-4 pb-28">
-        {tasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center gap-3 pt-24 text-center">
             <span className="text-4xl">📝</span>
-            <p className="max-w-xs text-zinc-500">
+            <p className="max-w-xs text-zinc-600 dark:text-zinc-400">
               Що плануєш сьогодні? Натисни + і розкажи все що в голові
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} onToggleDone={handleToggleDone} />
+            {visibleTasks.map((task) => (
+              <TaskCard key={task.id} task={task} onToggleDone={handleComplete} />
             ))}
           </div>
         )}
@@ -186,12 +224,14 @@ export default function Home() {
         type="button"
         onClick={() => setSheetOpen(true)}
         className={`fixed bottom-6 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-900 text-2xl text-white shadow-lg dark:bg-zinc-50 dark:text-zinc-900 ${
-          tasks.length === 0 ? "animate-pulse" : ""
+          visibleTasks.length === 0 ? "animate-pulse" : ""
         }`}
         aria-label="Додати задачі"
       >
         +
       </button>
+
+      {undoState && <UndoToast onUndo={handleUndo} />}
 
       <CaptureSheet
         open={sheetOpen}
