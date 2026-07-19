@@ -3,23 +3,24 @@
 import { useState } from "react";
 import { Task } from "@/lib/types";
 
-const PRIORITY_COLOR: Record<Task["priority"], string> = {
-  high: "bg-priority-high",
-  medium: "bg-priority-medium",
-  low: "bg-priority-low",
-};
-
 const PRIORITY_LABEL: Record<Task["priority"], string> = {
   high: "Високий пріоритет",
   medium: "Середній пріоритет",
   low: "Низький пріоритет",
 };
 
-const PRIORITY_SHORT: Record<Task["priority"], string> = {
-  high: "В",
-  medium: "С",
-  low: "Н",
+// Native checkboxes (`appearance: auto`) ignore author `border-color` in most
+// browsers — only `accent-color` (the checked fill) is respected. So this is
+// `appearance-none` with the checked state (background + checkmark) drawn
+// entirely in CSS, not relying on native rendering for either state.
+const PRIORITY_CHECKBOX: Record<Task["priority"], string> = {
+  high: "border-priority-high checked:border-priority-high checked:bg-priority-high",
+  medium: "border-priority-medium checked:border-priority-medium checked:bg-priority-medium",
+  low: "border-[#D4D4D8] checked:border-[#D4D4D8] checked:bg-[#D4D4D8]",
 };
+
+const CHECKMARK_URL =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8l3.5 3.5L13 5'/%3E%3C/svg%3E\")";
 
 const LABEL_STYLE: Record<Task["label"], string> = {
   work: "bg-label-work-bg text-label-work",
@@ -62,18 +63,14 @@ export function TaskCard({
       className="animate-card-in flex items-start gap-2.5 rounded-card bg-surface p-[14px_16px] transition-transform duration-120 active:scale-[0.99]"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
-      <span
-        aria-label={PRIORITY_LABEL[task.priority]}
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${PRIORITY_COLOR[task.priority]}`}
-      >
-        {PRIORITY_SHORT[task.priority]}
-      </span>
-      <span className="-m-2.5 flex shrink-0 items-center p-2.5">
+      <span className="-m-3 flex shrink-0 items-center p-3">
         <input
           type="checkbox"
           checked={task.done}
           onChange={handleCheck}
-          className={`h-[22px] w-[22px] rounded-checkbox border-2 border-[#E3DCD3] accent-accent ${
+          aria-label={`${PRIORITY_LABEL[task.priority]}, ${task.done ? "виконано" : "не виконано"}`}
+          style={{ backgroundImage: task.done ? CHECKMARK_URL : undefined }}
+          className={`h-[22px] w-[22px] cursor-pointer appearance-none rounded-checkbox border-2 bg-center bg-no-repeat bg-[length:12px] ${PRIORITY_CHECKBOX[task.priority]} ${
             justChecked ? "animate-checkbox-pop" : ""
           }`}
         />

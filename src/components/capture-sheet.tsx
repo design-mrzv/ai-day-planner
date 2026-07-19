@@ -93,11 +93,10 @@ export function CaptureSheet({
             className="rounded-input border-accent-border bg-accent-tint text-base text-text-primary placeholder:text-text-tertiary"
             disabled={status === "loading"}
           />
-          <p className="text-sm text-text-tertiary">
-            AI визначить пріоритет, час і категорію сам
-          </p>
           {status === "error" && (
-            <p className="text-sm text-red-600">{errorMessage}</p>
+            // Parent's `gap-3` already adds 12px above this element;
+            // -mt-1 (-4px) nets exactly the 8px the design spec calls for.
+            <p className="-mt-1 text-sm text-priority-high">{errorMessage}</p>
           )}
           <Button
             type="button"

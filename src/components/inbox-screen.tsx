@@ -71,7 +71,7 @@ export function InboxScreen({
               <DropdownMenu>
                 <DropdownMenuTrigger
                   aria-label="Опції задачі"
-                  className="shrink-0 rounded-full p-2 text-text-secondary hover:bg-[#F0EBE3]"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-[#F0EBE3]"
                 >
                   <MoreVertical size={18} />
                 </DropdownMenuTrigger>

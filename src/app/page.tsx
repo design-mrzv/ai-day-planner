@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Plus, Settings as SettingsIcon } from "lucide-react";
 import { TaskCard } from "@/components/task-card";
 import { CaptureSheet } from "@/components/capture-sheet";
 import { WelcomeScreen } from "@/components/welcome-screen";
@@ -234,10 +234,10 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-[0_10px_24px_rgba(181,80,47,0.35)] transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 active:scale-95"
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[0_10px_24px_rgba(181,80,47,0.35)] transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 active:scale-95"
           aria-label="Додати задачі"
         >
-          +
+          <Plus strokeWidth={2} size={26} />
         </button>
       </div>
 
