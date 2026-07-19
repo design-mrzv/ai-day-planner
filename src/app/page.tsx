@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { TaskCard } from "@/components/task-card";
+import { CaptureSheet } from "@/components/capture-sheet";
 import { seedTasks } from "@/lib/seed-tasks";
-import { Task } from "@/lib/types";
+import { ParsedTask, Task } from "@/lib/types";
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat("uk-UA", {
@@ -12,13 +13,26 @@ function todayLabel(): string {
   }).format(new Date());
 }
 
+function toTask(parsed: ParsedTask, uniqueSuffix: string): Task {
+  return { ...parsed, id: `${Date.now()}-${uniqueSuffix}`, done: false };
+}
+
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>(seedTasks);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   function handleToggleDone(id: string) {
     setTasks((prev) =>
       prev.map((task) => (task.id === id ? { ...task, done: !task.done } : task))
     );
+  }
+
+  function handleParsed(parsedTasks: ParsedTask[]) {
+    setTasks((prev) => [
+      ...prev,
+      ...parsedTasks.map((parsed, index) => toTask(parsed, String(index))),
+    ]);
+    setSheetOpen(false);
   }
 
   return (
@@ -49,6 +63,7 @@ export default function Home() {
 
       <button
         type="button"
+        onClick={() => setSheetOpen(true)}
         className={`fixed bottom-6 right-5 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-900 text-2xl text-white shadow-lg dark:bg-zinc-50 dark:text-zinc-900 ${
           tasks.length === 0 ? "animate-pulse" : ""
         }`}
@@ -56,6 +71,8 @@ export default function Home() {
       >
         +
       </button>
+
+      <CaptureSheet open={sheetOpen} onOpenChange={setSheetOpen} onParsed={handleParsed} />
     </div>
   );
 }

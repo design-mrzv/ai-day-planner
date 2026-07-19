@@ -1,0 +1,85 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ParsedTask } from "@/lib/types";
+
+interface CaptureSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onParsed: (tasks: ParsedTask[]) => void;
+}
+
+export function CaptureSheet({ open, onOpenChange, onParsed }: CaptureSheetProps) {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleSubmit() {
+    setStatus("loading");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Не вдалося обробити, спробуй ще раз");
+      }
+
+      onParsed(data.tasks as ParsedTask[]);
+      setText("");
+      setStatus("idle");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Не вдалося обробити, спробуй ще раз"
+      );
+    }
+  }
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Що в голові?</DrawerTitle>
+        </DrawerHeader>
+        <div className="flex flex-col gap-3 px-4 pb-6">
+          <Textarea
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="Що в голові?..."
+            rows={5}
+            className="text-base"
+            disabled={status === "loading"}
+          />
+          <p className="text-sm text-zinc-500">
+            Пиши все підряд, ми в цьому розберемось
+          </p>
+          {status === "error" && (
+            <p className="text-sm text-red-600">{errorMessage}</p>
+          )}
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={text.trim().length === 0 || status === "loading"}
+          >
+            {status === "loading" ? "Ми будуємо твій план..." : "Обробити"}
+          </Button>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
