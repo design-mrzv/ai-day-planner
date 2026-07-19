@@ -40,61 +40,75 @@ function formatDeadline(deadline: Task["deadline"]): string | null {
 interface TaskCardProps {
   task: Task;
   onToggleDone: (id: string) => void;
+  animationDelayMs?: number;
 }
 
-export function TaskCard({ task, onToggleDone }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onToggleDone,
+  animationDelayMs = 0,
+}: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [justChecked, setJustChecked] = useState(false);
   const deadlineLabel = formatDeadline(task.deadline);
 
+  function handleCheck() {
+    setJustChecked(true);
+    onToggleDone(task.id);
+  }
+
   return (
-    <div className="flex gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div
+      className="animate-card-in flex items-start gap-2.5 rounded-card bg-surface p-[14px_16px] transition-transform duration-120 active:scale-[0.99]"
+      style={{ animationDelay: `${animationDelayMs}ms` }}
+    >
       <span
         aria-label={PRIORITY_LABEL[task.priority]}
-        className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${PRIORITY_COLOR[task.priority]}`}
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${PRIORITY_COLOR[task.priority]}`}
       >
         {PRIORITY_SHORT[task.priority]}
       </span>
-      <span className="-m-3 flex shrink-0 items-center p-3">
+      <span className="-m-2.5 flex shrink-0 items-center p-2.5">
         <input
           type="checkbox"
           checked={task.done}
-          onChange={() => onToggleDone(task.id)}
-          className="h-5 w-5 rounded border-zinc-300"
+          onChange={handleCheck}
+          className={`h-[22px] w-[22px] rounded-checkbox border-2 border-[#E3DCD3] accent-accent ${
+            justChecked ? "animate-checkbox-pop" : ""
+          }`}
         />
       </span>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex flex-1 flex-col items-start gap-1.5 text-left"
+        className="flex flex-1 flex-col items-start gap-[7px] text-left"
       >
-        <div className="flex w-full items-center justify-between gap-2">
+        <div className="flex w-full items-baseline justify-between gap-2">
           <span
-            className={`text-base font-medium text-zinc-900 dark:text-zinc-50 ${
+            className={`text-base font-semibold text-text-primary ${
               task.done ? "line-through opacity-50" : ""
             }`}
           >
             {task.title}
           </span>
           {task.time && (
-            <span className="shrink-0 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="shrink-0 text-sm font-medium tabular-nums text-text-secondary">
               {task.time}
             </span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span
-            className={`rounded-full px-2 py-0.5 font-medium ${LABEL_STYLE[task.label]}`}
+            className={`rounded-full px-2.5 py-[3px] font-semibold ${LABEL_STYLE[task.label]}`}
           >
             {LABEL_TEXT[task.label]}
           </span>
           {deadlineLabel && (
-            <span className="text-zinc-600 dark:text-zinc-400">{deadlineLabel}</span>
+            <span className="font-semibold text-text-tertiary">{deadlineLabel}</span>
           )}
         </div>
         {expanded && task.description && (
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            {task.description}
-          </p>
+          <p className="mt-1 text-sm text-text-secondary">{task.description}</p>
         )}
       </button>
     </div>

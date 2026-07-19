@@ -69,22 +69,27 @@ export function CaptureSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} disablePointerDismissal={isOpening}>
-      <DrawerContent initialFocus={textareaRef}>
+      <DrawerContent
+        initialFocus={textareaRef}
+        className="rounded-t-[28px] shadow-[0_-12px_40px_rgba(28,24,21,0.18)]"
+      >
         <DrawerHeader>
-          <DrawerTitle>Що в голові?</DrawerTitle>
+          <DrawerTitle className="text-center text-lg font-semibold tracking-tight">
+            Що в голові?
+          </DrawerTitle>
         </DrawerHeader>
         <div className="flex flex-col gap-3 px-4 pb-6">
           <Textarea
             ref={textareaRef}
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
-            placeholder="Що в голові?..."
+            placeholder="Пиши все підряд, ми в цьому розберемось..."
             rows={5}
-            className="text-base"
+            className="rounded-input border-accent-border bg-accent-tint text-base text-text-primary placeholder:text-text-tertiary"
             disabled={status === "loading"}
           />
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Пиши все підряд, ми в цьому розберемось
+          <p className="text-sm text-text-tertiary">
+            AI визначить пріоритет, час і категорію сам
           </p>
           {status === "error" && (
             <p className="text-sm text-red-600">{errorMessage}</p>
@@ -93,6 +98,7 @@ export function CaptureSheet({
             type="button"
             onClick={handleSubmit}
             disabled={text.trim().length === 0 || status === "loading"}
+            className="rounded-input font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
           >
             {status === "loading" ? "Ми будуємо твій план..." : "Обробити"}
           </Button>
