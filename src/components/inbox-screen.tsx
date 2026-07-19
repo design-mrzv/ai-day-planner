@@ -28,13 +28,13 @@ export function InboxScreen({
 }: InboxScreenProps) {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-      <header className="px-5 pt-8 pb-4">
+      <header className="px-4 pt-8 pb-4">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
           Ось що ми знайшли
         </h1>
       </header>
 
-      <main className="flex-1 space-y-3 px-5 pb-28">
+      <main className="flex-1 space-y-3 px-4 pb-28">
         {tasks.map((task, index) => (
           <div
             key={index}
@@ -86,7 +86,7 @@ export function InboxScreen({
         ))}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-zinc-50 px-5 py-4 dark:bg-black">
+      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-zinc-50 px-4 py-4 dark:bg-black">
         <button
           type="button"
           onClick={onBack}
