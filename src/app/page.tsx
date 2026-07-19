@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TaskCard } from "@/components/task-card";
 import { CaptureSheet } from "@/components/capture-sheet";
-import { seedTasks } from "@/lib/seed-tasks";
+import { WelcomeScreen } from "@/components/welcome-screen";
+import {
+  loadOnboardingDone,
+  loadTasks,
+  saveOnboardingDone,
+  saveTasks,
+} from "@/lib/storage";
 import { ParsedTask, Task } from "@/lib/types";
 
 function todayLabel(): string {
@@ -18,21 +24,54 @@ function toTask(parsed: ParsedTask, uniqueSuffix: string): Task {
 }
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>(seedTasks);
+  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // localStorage isn't available during SSR, so hydrating from it must
+  // happen in an effect rather than a useState initializer.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setTasks(loadTasks());
+    setOnboardingDone(loadOnboardingDone());
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (tasks !== null) {
+      saveTasks(tasks);
+    }
+  }, [tasks]);
 
   function handleToggleDone(id: string) {
     setTasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, done: !task.done } : task))
+      (prev ?? []).map((task) =>
+        task.id === id ? { ...task, done: !task.done } : task
+      )
     );
   }
 
   function handleParsed(parsedTasks: ParsedTask[]) {
     setTasks((prev) => [
-      ...prev,
+      ...(prev ?? []),
       ...parsedTasks.map((parsed, index) => toTask(parsed, String(index))),
     ]);
     setSheetOpen(false);
+  }
+
+  if (tasks === null || onboardingDone === null) {
+    return null;
+  }
+
+  if (!onboardingDone) {
+    return (
+      <WelcomeScreen
+        onStart={() => {
+          saveOnboardingDone();
+          setOnboardingDone(true);
+        }}
+      />
+    );
   }
 
   return (

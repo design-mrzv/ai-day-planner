@@ -147,6 +147,8 @@ rm src/lib/seed-tasks.ts
 
 - [ ] **Step 2: Rewrite the Today page with hydration and persistence**
 
+> **Note:** this repo's `eslint-config-next` enables the React Compiler lint preset, which errors on `react-hooks/set-state-in-effect` for any `setState` call inside a `useEffect` body — including this legitimate "hydrate from an external system on mount" case. As executed, the hydration effect below is wrapped in `/* eslint-disable react-hooks/set-state-in-effect */` / `/* eslint-enable ... */` with a comment explaining why (localStorage isn't available during SSR, so a `useState` initializer can't read it).
+
 `src/app/page.tsx`:
 ```tsx
 "use client";
