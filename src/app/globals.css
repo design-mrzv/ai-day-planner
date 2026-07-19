@@ -48,6 +48,16 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@theme {
+  --color-priority-high: var(--color-red-500);
+  --color-priority-medium: var(--color-amber-500);
+  --color-priority-low: var(--color-zinc-400);
+  --color-label-work: var(--color-blue-700);
+  --color-label-work-bg: var(--color-blue-100);
+  --color-label-personal: var(--color-green-700);
+  --color-label-personal-bg: var(--color-green-100);
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

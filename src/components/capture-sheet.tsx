@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -31,6 +31,7 @@ export function CaptureSheet({
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [isOpening, setIsOpening] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -68,12 +69,13 @@ export function CaptureSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} disablePointerDismissal={isOpening}>
-      <DrawerContent>
+      <DrawerContent initialFocus={textareaRef}>
         <DrawerHeader>
           <DrawerTitle>Що в голові?</DrawerTitle>
         </DrawerHeader>
         <div className="flex flex-col gap-3 px-4 pb-6">
           <Textarea
+            ref={textareaRef}
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
             placeholder="Що в голові?..."
