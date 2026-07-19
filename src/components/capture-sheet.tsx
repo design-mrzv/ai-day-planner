@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -19,6 +19,8 @@ interface CaptureSheetProps {
   onParsed: (tasks: ParsedTask[]) => void;
 }
 
+const OPENING_GUARD_MS = 300;
+
 export function CaptureSheet({
   open,
   onOpenChange,
@@ -28,6 +30,14 @@ export function CaptureSheet({
 }: CaptureSheetProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isOpening, setIsOpening] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setIsOpening(true);
+    const timeoutId = setTimeout(() => setIsOpening(false), OPENING_GUARD_MS);
+    return () => clearTimeout(timeoutId);
+  }, [open]);
 
   async function handleSubmit() {
     setStatus("loading");
@@ -57,7 +67,7 @@ export function CaptureSheet({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} disablePointerDismissal={isOpening}>
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Що в голові?</DrawerTitle>
@@ -71,7 +81,7 @@ export function CaptureSheet({
             className="text-base"
             disabled={status === "loading"}
           />
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Пиши все підряд, ми в цьому розберемось
           </p>
           {status === "error" && (
