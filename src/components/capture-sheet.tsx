@@ -14,11 +14,18 @@ import { ParsedTask } from "@/lib/types";
 interface CaptureSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  text: string;
+  onTextChange: (text: string) => void;
   onParsed: (tasks: ParsedTask[]) => void;
 }
 
-export function CaptureSheet({ open, onOpenChange, onParsed }: CaptureSheetProps) {
-  const [text, setText] = useState("");
+export function CaptureSheet({
+  open,
+  onOpenChange,
+  text,
+  onTextChange,
+  onParsed,
+}: CaptureSheetProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -39,9 +46,8 @@ export function CaptureSheet({ open, onOpenChange, onParsed }: CaptureSheetProps
         throw new Error(data.error ?? "Не вдалося обробити, спробуй ще раз");
       }
 
-      onParsed(data.tasks as ParsedTask[]);
-      setText("");
       setStatus("idle");
+      onParsed(data.tasks as ParsedTask[]);
     } catch (error) {
       setStatus("error");
       setErrorMessage(
@@ -59,7 +65,7 @@ export function CaptureSheet({ open, onOpenChange, onParsed }: CaptureSheetProps
         <div className="flex flex-col gap-3 px-4 pb-6">
           <Textarea
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => onTextChange(event.target.value)}
             placeholder="Що в голові?..."
             rows={5}
             className="text-base"

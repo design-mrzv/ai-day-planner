@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Settings as SettingsIcon } from "lucide-react";
 import { TaskCard } from "@/components/task-card";
 import { CaptureSheet } from "@/components/capture-sheet";
 import { WelcomeScreen } from "@/components/welcome-screen";
+import { SettingsScreen } from "@/components/settings-screen";
+import { InboxScreen } from "@/components/inbox-screen";
 import {
+  loadInboxEnabled,
   loadOnboardingDone,
   loadTasks,
+  saveInboxEnabled,
   saveOnboardingDone,
   saveTasks,
 } from "@/lib/storage";
 import { ParsedTask, Task } from "@/lib/types";
+
+type Screen = "today" | "settings" | "inbox";
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat("uk-UA", {
@@ -26,7 +33,13 @@ function toTask(parsed: ParsedTask, uniqueSuffix: string): Task {
 export default function Home() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [inboxEnabled, setInboxEnabled] = useState<boolean | null>(null);
+  const [screen, setScreen] = useState<Screen>("today");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [captureText, setCaptureText] = useState("");
+  const [pendingInboxTasks, setPendingInboxTasks] = useState<ParsedTask[] | null>(
+    null
+  );
 
   // localStorage isn't available during SSR, so hydrating from it must
   // happen in an effect rather than a useState initializer.
@@ -34,6 +47,7 @@ export default function Home() {
   useEffect(() => {
     setTasks(loadTasks());
     setOnboardingDone(loadOnboardingDone());
+    setInboxEnabled(loadInboxEnabled());
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -52,14 +66,51 @@ export default function Home() {
   }
 
   function handleParsed(parsedTasks: ParsedTask[]) {
+    setSheetOpen(false);
+
+    if (inboxEnabled) {
+      setPendingInboxTasks(parsedTasks);
+      setScreen("inbox");
+      return;
+    }
+
     setTasks((prev) => [
       ...(prev ?? []),
       ...parsedTasks.map((parsed, index) => toTask(parsed, String(index))),
     ]);
-    setSheetOpen(false);
+    setCaptureText("");
   }
 
-  if (tasks === null || onboardingDone === null) {
+  function handleChangeInboxTask(index: number, patch: Partial<ParsedTask>) {
+    setPendingInboxTasks((prev) =>
+      (prev ?? []).map((task, i) => (i === index ? { ...task, ...patch } : task))
+    );
+  }
+
+  function handleConfirmInbox() {
+    setTasks((prev) => [
+      ...(prev ?? []),
+      ...(pendingInboxTasks ?? []).map((parsed, index) =>
+        toTask(parsed, String(index))
+      ),
+    ]);
+    setCaptureText("");
+    setPendingInboxTasks(null);
+    setScreen("today");
+  }
+
+  function handleBackFromInbox() {
+    setPendingInboxTasks(null);
+    setScreen("today");
+    setSheetOpen(true);
+  }
+
+  function handleToggleInboxSetting(value: boolean) {
+    saveInboxEnabled(value);
+    setInboxEnabled(value);
+  }
+
+  if (tasks === null || onboardingDone === null || inboxEnabled === null) {
     return null;
   }
 
@@ -74,13 +125,44 @@ export default function Home() {
     );
   }
 
+  if (screen === "settings") {
+    return (
+      <SettingsScreen
+        inboxEnabled={inboxEnabled}
+        onToggleInbox={handleToggleInboxSetting}
+        onBack={() => setScreen("today")}
+      />
+    );
+  }
+
+  if (screen === "inbox" && pendingInboxTasks) {
+    return (
+      <InboxScreen
+        tasks={pendingInboxTasks}
+        onChangeTask={handleChangeInboxTask}
+        onConfirm={handleConfirmInbox}
+        onBack={handleBackFromInbox}
+      />
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-black">
-      <header className="px-5 pt-8 pb-4">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-          Today
-        </h1>
-        <p className="mt-1 text-sm capitalize text-zinc-500">{todayLabel()}</p>
+      <header className="flex items-start justify-between px-5 pt-8 pb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+            Today
+          </h1>
+          <p className="mt-1 text-sm capitalize text-zinc-500">{todayLabel()}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setScreen("settings")}
+          aria-label="Settings"
+          className="mt-1 text-zinc-500"
+        >
+          <SettingsIcon size={24} />
+        </button>
       </header>
 
       <main className="flex-1 px-5 pb-28">
@@ -111,7 +193,13 @@ export default function Home() {
         +
       </button>
 
-      <CaptureSheet open={sheetOpen} onOpenChange={setSheetOpen} onParsed={handleParsed} />
+      <CaptureSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        text={captureText}
+        onTextChange={setCaptureText}
+        onParsed={handleParsed}
+      />
     </div>
   );
 }
