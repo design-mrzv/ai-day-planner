@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 import { extractJsonArray, ParseError, toParsedTasks } from "@/lib/parse-response";
 
-const MODEL = "gemini-flash-latest";
+const MODEL = "gemini-flash-lite-latest";
 const HUMAN_ERROR = "Не вдалося обробити, спробуй ще раз";
 
 function buildPrompt(userInput: string): string {
