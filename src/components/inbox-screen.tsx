@@ -198,20 +198,20 @@ export function InboxScreen({
         })}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-bg-base px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 flex gap-2 bg-bg-base px-4 py-4">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-full border border-[#E3DCD3] py-3 text-base font-semibold text-text-primary transition-transform duration-150 active:scale-[0.98]"
+          className="basis-[30%] shrink-0 grow-0 rounded-full border border-[#E3DCD3] py-3 text-base font-semibold text-text-primary transition-transform duration-150 active:scale-[0.98]"
         >
           Назад
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className="flex-1 rounded-full bg-accent py-3 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
+          className="basis-[70%] shrink-0 grow-0 rounded-full bg-accent py-3 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
         >
-          Додати все в Today
+          Додати задачі
         </button>
       </div>
     </div>

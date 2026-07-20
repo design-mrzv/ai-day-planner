@@ -79,7 +79,7 @@ export function CaptureSheet({
         className="rounded-t-[28px] shadow-[0_-12px_40px_rgba(28,24,21,0.18)]"
       >
         <DrawerHeader>
-          <DrawerTitle className="text-left font-sans text-[17px] font-semibold leading-6">
+          <DrawerTitle className="mb-4 text-left font-sans text-[17px] font-semibold leading-6">
             Що в голові?
           </DrawerTitle>
         </DrawerHeader>
