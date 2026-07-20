@@ -249,7 +249,7 @@ export default function Home() {
             </div>
             {tomorrowTasks.length > 0 && (
               <>
-                <h2 className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                <h2 className="mt-7 mb-2.5 font-heading text-[17px] leading-[22px] font-bold text-text-primary">
                   Завтра
                 </h2>
                 <div className="flex flex-col gap-3">

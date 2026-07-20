@@ -15,8 +15,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "AI Day Planner",
-  description: "AI-планер дня",
+  title: "Settle",
+  description: "Розкажи все, що в голові. Ми складемо план на день.",
 };
 
 // iOS Safari can leave `position: fixed` elements (like the Capture drawer's
