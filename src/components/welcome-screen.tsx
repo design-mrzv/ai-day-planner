@@ -16,7 +16,7 @@ export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
       <button
         type="button"
         onClick={onStart}
-        className="h-14 w-full max-w-xs rounded-input bg-accent px-6 py-4 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
+        className="h-14 w-full max-w-xs rounded-full bg-accent px-6 py-4 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
       >
         Почати
       </button>

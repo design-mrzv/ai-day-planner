@@ -102,7 +102,7 @@ export function CaptureSheet({
             type="button"
             onClick={handleSubmit}
             disabled={text.trim().length === 0 || status === "loading"}
-            className="h-14 w-full rounded-input px-6 py-4 text-base font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
+            className="h-14 w-full rounded-full px-6 py-4 text-base font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
           >
             {status === "loading" ? (
               <span className="flex items-center justify-center gap-1.5">

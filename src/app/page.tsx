@@ -269,23 +269,24 @@ export default function Home() {
         )}
       </main>
 
-      <div className="fixed bottom-6 right-4">
-        {visibleTasks.length === 0 && (
-          <span className="animate-pulse-ring absolute inset-0 rounded-full bg-accent-tint" />
-        )}
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[0_10px_24px_rgba(181,80,47,0.35)] transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 active:scale-95 ${
-            visibleTasks.length === 0 ? "animate-fab-breathe" : ""
-          }`}
-          aria-label="Додати задачі"
-        >
-          <Plus strokeWidth={2} size={26} />
-        </button>
+      <div className="fixed inset-x-4 bottom-6 flex items-center justify-end gap-2.5">
+        {undoState && <UndoToast onUndo={handleUndo} />}
+        <div className="relative h-14 w-14 shrink-0">
+          {visibleTasks.length === 0 && (
+            <span className="animate-pulse-ring absolute inset-0 rounded-full bg-accent-tint" />
+          )}
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[0_10px_24px_rgba(181,80,47,0.35)] transition-transform duration-150 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:scale-105 active:scale-95 ${
+              visibleTasks.length === 0 ? "animate-fab-breathe" : ""
+            }`}
+            aria-label="Додати задачі"
+          >
+            <Plus strokeWidth={2} size={26} />
+          </button>
+        </div>
       </div>
-
-      {undoState && <UndoToast onUndo={handleUndo} />}
 
       <CaptureSheet
         open={sheetOpen}
