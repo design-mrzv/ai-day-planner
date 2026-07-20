@@ -1,3 +1,36 @@
+# Visual Redesign v6: Inbox Trigger+Popover Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace Inbox's three always-visible pill rows with a horizontally-scrolling row of three trigger+popover controls (Priority, Category, Deadline), and swap the "⋮" delete dropdown for a plain "✕" button — matching `DESIGN_SPEC_v6.md` and its working prototype.
+
+**Architecture:** Single-file rewrite of `src/components/inbox-screen.tsx`. Reuses the existing shadcn `DropdownMenu` (already in the project from the post-audit Inbox-delete feature) for the popover mechanics instead of hand-rolled open/close JS — it already portals content (avoids clipping by the new `overflow-x-auto` row), auto-flips on collision, and closes on outside click. `onChangeTask`/`onDeleteTask` props are unchanged.
+
+**Tech Stack:** Next.js 16, React 19, TypeScript, Tailwind CSS v4, shadcn `DropdownMenu`, `lucide-react` (`Flag`, `Tag`, `Calendar`, `ChevronDown`, `Check`, `X`).
+
+## Global Constraints
+
+- Delete affordance is "✕" (36×36 visible circle, 44×44 tap target), not "⋮" — confirmed with user, overriding v6's incorrect claim that this was already decided.
+- Trigger row scrolls horizontally (`overflow-x-auto`, no wrap), doesn't wrap to a second line — `flex-nowrap`, hidden scrollbar.
+- Popover selection applies immediately on click, no confirm step; only one popover open at a time (both free from reusing `DropdownMenu`).
+- Priority icon color: `text-priority-low` is `#A39B92` (the existing warm token) here — NOT the cooler `#D4D4D8` used specifically for the Today checkbox border in v3. Different context, different value, already how the tokens are set up.
+- Today, Capture, Settings, WelcomeScreen — untouched by this plan.
+
+---
+
+### Task 1: Rewrite Inbox with trigger + popover controls
+
+**Files:**
+- Modify: `src/components/inbox-screen.tsx`
+
+**Interfaces:**
+- Consumes: `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem` from `@/components/ui/dropdown-menu` (existing); `Label`, `ParsedTask`, `Priority` from `@/lib/types` (existing).
+- Produces: `InboxScreen` component — same props as before (`{ tasks, onChangeTask, onDeleteTask, onConfirm, onBack }`), no signature change, so `page.tsx` needs no edits.
+
+- [ ] **Step 1: Replace the file**
+
+`src/components/inbox-screen.tsx`:
+```tsx
 "use client";
 
 import { Calendar, Check, ChevronDown, Flag, Tag, X } from "lucide-react";
@@ -122,7 +155,7 @@ export function InboxScreen({
                       {PRIORITY_LABEL_TEXT[task.priority]}
                       <ChevronDown size={12} className="text-text-tertiary" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-44">
+                    <DropdownMenuContent align="start">
                       {PRIORITY_OPTIONS.map((option) => (
                         <DropdownMenuItem
                           key={option.value}
@@ -151,7 +184,7 @@ export function InboxScreen({
                       {LABEL_TEXT[task.label]}
                       <ChevronDown size={12} className="text-text-tertiary" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-44">
+                    <DropdownMenuContent align="start">
                       {LABEL_OPTIONS.map((option) => (
                         <DropdownMenuItem
                           key={option.value}
@@ -176,7 +209,7 @@ export function InboxScreen({
                       {DEADLINE_LABEL_TEXT[deadlineValue]}
                       <ChevronDown size={12} className="text-text-tertiary" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-44">
+                    <DropdownMenuContent align="start">
                       {DEADLINE_OPTIONS.map((option) => (
                         <DropdownMenuItem
                           key={option.value}
@@ -217,3 +250,57 @@ export function InboxScreen({
     </div>
   );
 }
+```
+
+- [ ] **Step 2: Verify build and lint**
+
+```bash
+npm run build
+npm run lint
+```
+
+Expected: both succeed. `page.tsx` needs no changes since `InboxScreen`'s prop signature is unchanged.
+
+- [ ] **Step 3: Manually verify all 7 scenarios from the design doc**
+
+```bash
+npm run dev
+```
+
+1. Enable Inbox (Settings), submit text with 2+ tasks — each Inbox card shows three trigger pills (icon + value + chevron) in one row.
+2. Narrow the viewport (or use mobile emulation) and drag the trigger row sideways — confirms horizontal scroll, no wrap to a second line, row visibly continues past the edge.
+3. Tap the Priority trigger — popover opens with 3 options, current one checked; tap a different one — trigger updates immediately, popover closes, no confirm step.
+4. Open the Priority popover, then tap the Category trigger — Priority popover closes automatically.
+5. Tap outside any open popover — closes without changing the value.
+6. Tap "✕" on a card — removed immediately, no confirmation, other cards unaffected.
+7. Confirm the delete tap target feels comfortably tappable slightly outside the visible 36px circle.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "$(cat <<'EOF'
+Replace Inbox pill rows with scrollable trigger+popover controls
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 2: Push, deploy, and verify live
+
+**Files:** none (operational task).
+
+- [ ] **Step 1: Push to GitHub**
+
+```bash
+git push origin main
+```
+
+Confirm in the Vercel dashboard that the deployment reaches **Ready**.
+
+- [ ] **Step 2: Verify on the live URL**
+
+Open the live Vercel URL, enable Inbox in Settings, submit text, and repeat Task 1 Step 3's scenarios 1, 3, 6 (the core interactions) on the live deploy.
