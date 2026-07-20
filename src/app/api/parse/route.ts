@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { extractJsonArray, ParseError, toParsedTasks } from "@/lib/parse-response";
 
 const MODEL = "gemini-flash-lite-latest";
-const HUMAN_ERROR = "Не вдалося обробити, спробуй ще раз";
+const HUMAN_ERROR = "Не вдалося розібрати текст. Спробуй ще раз";
 
 function buildPrompt(userInput: string): string {
   return `Ти — асистент планування. Юзер описав свої задачі вільним текстом.

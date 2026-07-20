@@ -59,7 +59,7 @@ export function CaptureSheet({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Не вдалося обробити, спробуй ще раз");
+        throw new Error(data.error ?? "Не вдалося розібрати текст. Спробуй ще раз");
       }
 
       setStatus("idle");
@@ -67,7 +67,7 @@ export function CaptureSheet({
     } catch (error) {
       setStatus("error");
       setErrorMessage(
-        error instanceof Error ? error.message : "Не вдалося обробити, спробуй ще раз"
+        error instanceof Error ? error.message : "Не вдалося розібрати текст. Спробуй ще раз"
       );
     }
   }
@@ -104,7 +104,24 @@ export function CaptureSheet({
             disabled={text.trim().length === 0 || status === "loading"}
             className="h-14 w-full rounded-input px-6 py-4 text-base font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
           >
-            {status === "loading" ? "Ми будуємо твій план..." : "Обробити"}
+            {status === "loading" ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <span
+                  className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-current"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-current"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-current"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </span>
+            ) : (
+              "Обробити"
+            )}
           </Button>
         </div>
       </DrawerContent>
