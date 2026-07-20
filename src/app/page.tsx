@@ -28,13 +28,6 @@ interface UndoState {
 
 const STAGGER_STEP_MS = 40;
 
-function todayLabel(): string {
-  return new Intl.DateTimeFormat("uk-UA", {
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
-}
-
 function toTask(parsed: ParsedTask, uniqueSuffix: string): Task {
   return { ...parsed, id: `${Date.now()}-${uniqueSuffix}`, done: false };
 }
@@ -183,23 +176,20 @@ export default function Home() {
   }
 
   const visibleTasks = sortTasks(tasks.filter((task) => !task.done));
+  const todayTasks = visibleTasks.filter((task) => task.deadline !== "tomorrow");
+  const tomorrowTasks = visibleTasks.filter((task) => task.deadline === "tomorrow");
 
   return (
     <div className="flex min-h-screen flex-col bg-bg-base">
-      <header className="flex items-start justify-between px-4 pt-8 pb-4">
-        <div>
-          <h1 className="font-heading text-[32px] leading-9 font-bold tracking-tight text-text-primary">
-            Сьогодні
-          </h1>
-          <p className="mt-1 text-sm font-medium capitalize text-text-secondary">
-            {todayLabel()}
-          </p>
-        </div>
+      <header className="flex items-center justify-between px-4 pt-8 pb-4">
+        <h1 className="font-heading text-[32px] leading-9 font-bold tracking-tight text-text-primary">
+          Сьогодні
+        </h1>
         <button
           type="button"
           onClick={() => setScreen("settings")}
           aria-label="Налаштування"
-          className="mt-1.5 text-text-secondary transition-transform duration-150 active:scale-95"
+          className="text-text-secondary transition-transform duration-150 active:scale-95"
         >
           <SettingsIcon size={22} />
         </button>
@@ -214,16 +204,35 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {visibleTasks.map((task, index) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onToggleDone={handleComplete}
-                animationDelayMs={index * STAGGER_STEP_MS}
-              />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-3">
+              {todayTasks.map((task, index) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onToggleDone={handleComplete}
+                  animationDelayMs={index * STAGGER_STEP_MS}
+                />
+              ))}
+            </div>
+            {tomorrowTasks.length > 0 && (
+              <>
+                <h2 className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                  Завтра
+                </h2>
+                <div className="flex flex-col gap-3">
+                  {tomorrowTasks.map((task, index) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onToggleDone={handleComplete}
+                      animationDelayMs={(todayTasks.length + index) * STAGGER_STEP_MS}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </main>
 

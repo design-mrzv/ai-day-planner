@@ -79,7 +79,7 @@ export function CaptureSheet({
         className="rounded-t-[28px] shadow-[0_-12px_40px_rgba(28,24,21,0.18)]"
       >
         <DrawerHeader>
-          <DrawerTitle className="text-center text-lg font-semibold tracking-tight">
+          <DrawerTitle className="text-left font-sans text-[17px] font-semibold leading-6">
             Що в голові?
           </DrawerTitle>
         </DrawerHeader>
@@ -102,7 +102,7 @@ export function CaptureSheet({
             type="button"
             onClick={handleSubmit}
             disabled={text.trim().length === 0 || status === "loading"}
-            className="rounded-input font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
+            className="h-14 w-full rounded-input px-6 py-4 text-base font-semibold transition-transform duration-150 active:scale-[0.98] active:bg-accent-hover"
           >
             {status === "loading" ? "Ми будуємо твій план..." : "Обробити"}
           </Button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Calendar, Clock, Hash } from "lucide-react";
 import { Task } from "@/lib/types";
 
 const PRIORITY_LABEL: Record<Task["priority"], string> = {
@@ -22,9 +23,9 @@ const PRIORITY_CHECKBOX: Record<Task["priority"], string> = {
 const CHECKMARK_URL =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8l3.5 3.5L13 5'/%3E%3C/svg%3E\")";
 
-const LABEL_STYLE: Record<Task["label"], string> = {
-  work: "bg-label-work-bg text-label-work",
-  personal: "bg-label-personal-bg text-label-personal",
+const LABEL_TEXT_COLOR: Record<Task["label"], string> = {
+  work: "text-label-work",
+  personal: "text-label-personal",
 };
 
 const LABEL_TEXT: Record<Task["label"], string> = {
@@ -32,9 +33,11 @@ const LABEL_TEXT: Record<Task["label"], string> = {
   personal: "Особисте",
 };
 
+// Grouping into "Сьогодні"/"Завтра" sections (page.tsx) already conveys
+// today/tomorrow, so the meta row only needs a deadline badge when it's
+// neither — an AI-parsed specific YYYY-MM-DD date.
 function formatDeadline(deadline: Task["deadline"]): string | null {
-  if (!deadline || deadline === "today") return null;
-  if (deadline === "tomorrow") return "Завтра";
+  if (!deadline || deadline === "today" || deadline === "tomorrow") return null;
   return deadline;
 }
 
@@ -80,29 +83,30 @@ export function TaskCard({
         onClick={() => setExpanded((v) => !v)}
         className="flex flex-1 flex-col items-start gap-[7px] text-left"
       >
-        <div className="flex w-full items-baseline justify-between gap-2">
-          <span
-            className={`text-base font-semibold text-text-primary ${
-              task.done ? "line-through opacity-50" : ""
-            }`}
-          >
-            {task.title}
-          </span>
+        <span
+          className={`text-base font-semibold text-text-primary ${
+            task.done ? "line-through opacity-50" : ""
+          }`}
+        >
+          {task.title}
+        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-text-secondary">
+          {deadlineLabel && (
+            <span className="flex items-center gap-1">
+              <Calendar size={14} strokeWidth={2} />
+              {deadlineLabel}
+            </span>
+          )}
           {task.time && (
-            <span className="shrink-0 text-sm font-medium tabular-nums text-text-secondary">
+            <span className="flex items-center gap-1 tabular-nums">
+              <Clock size={14} strokeWidth={2} />
               {task.time}
             </span>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span
-            className={`rounded-full px-2.5 py-[3px] font-semibold ${LABEL_STYLE[task.label]}`}
-          >
+          <span className={`flex items-center gap-1 ${LABEL_TEXT_COLOR[task.label]}`}>
+            <Hash size={14} strokeWidth={2} />
             {LABEL_TEXT[task.label]}
           </span>
-          {deadlineLabel && (
-            <span className="font-semibold text-text-tertiary">{deadlineLabel}</span>
-          )}
         </div>
         {expanded && task.description && (
           <p className="mt-1 text-sm text-text-secondary">{task.description}</p>
