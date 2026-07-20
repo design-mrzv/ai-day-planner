@@ -7,12 +7,12 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-bg-base px-8 text-center">
-      <h1 className="font-heading text-4xl font-bold tracking-tight text-text-primary">
-        AI Day Planner
-      </h1>
-      <p className="max-w-xs text-lg text-text-secondary">
-        Розкажи все, що в голові. Ми складемо план на день
-      </p>
+      <div className="flex flex-col items-center gap-2">
+        <img src="/logo.svg" alt="AI Day Planner" className="w-[160px]" />
+        <p className="max-w-xs text-lg text-text-secondary">
+          Розкажи все, що в голові. Ми складемо план на день
+        </p>
+      </div>
       <button
         type="button"
         onClick={onStart}

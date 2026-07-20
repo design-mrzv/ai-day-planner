@@ -221,13 +221,18 @@ export default function Home() {
         </button>
       </header>
 
-      <main className="flex-1 px-4 pb-28">
+      <main className="flex flex-1 flex-col px-4 pb-28">
         {visibleTasks.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 pt-24 text-center">
-            <span className="text-4xl">📝</span>
-            <p className="max-w-xs text-text-secondary">
-              Що плануєш сьогодні? Натисни + і розкажи все що в голові
-            </p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+            <img src="/illustration-settle.svg" alt="" className="w-[240px]" />
+            <div className="mt-1 flex flex-col items-center gap-1">
+              <p className="text-base font-semibold text-text-primary">
+                Що плануєш сьогодні?
+              </p>
+              <p className="text-sm text-text-secondary">
+                Натисни + і розкажи все що в голові
+              </p>
+            </div>
           </div>
         ) : (
           <>
