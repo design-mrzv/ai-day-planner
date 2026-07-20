@@ -27,9 +27,21 @@ interface UndoState {
 }
 
 const STAGGER_STEP_MS = 40;
+const COMPLETE_VISIBLE_MS = 1000;
+const COMPLETE_FADE_MS = 150;
 
 function toTask(parsed: ParsedTask, uniqueSuffix: string): Task {
   return { ...parsed, id: `${Date.now()}-${uniqueSuffix}`, done: false };
+}
+
+function withId(ids: Set<string>, id: string): Set<string> {
+  return new Set(ids).add(id);
+}
+
+function withoutId(ids: Set<string>, id: string): Set<string> {
+  const next = new Set(ids);
+  next.delete(id);
+  return next;
 }
 
 export default function Home() {
@@ -43,6 +55,8 @@ export default function Home() {
     null
   );
   const [undoState, setUndoState] = useState<UndoState | null>(null);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+  const [fadingIds, setFadingIds] = useState<Set<string>>(new Set());
 
   // localStorage isn't available during SSR, so hydrating from it must
   // happen in an effect rather than a useState initializer.
@@ -67,12 +81,22 @@ export default function Home() {
     setTasks((prev) =>
       (prev ?? []).map((task) => (task.id === id ? { ...task, done: true } : task))
     );
+    setCompletingIds((prev) => withId(prev, id));
 
-    setUndoState((prev) => {
-      if (prev) clearTimeout(prev.timeoutId);
-      const timeoutId = setTimeout(() => setUndoState(null), 4000);
-      return { task: target, timeoutId };
-    });
+    setTimeout(() => {
+      setFadingIds((prev) => withId(prev, id));
+    }, COMPLETE_VISIBLE_MS);
+
+    setTimeout(() => {
+      setCompletingIds((prev) => withoutId(prev, id));
+      setFadingIds((prev) => withoutId(prev, id));
+
+      setUndoState((prevUndo) => {
+        if (prevUndo) clearTimeout(prevUndo.timeoutId);
+        const timeoutId = setTimeout(() => setUndoState(null), 4000);
+        return { task: target, timeoutId };
+      });
+    }, COMPLETE_VISIBLE_MS + COMPLETE_FADE_MS);
   }
 
   function handleUndo() {
@@ -175,7 +199,9 @@ export default function Home() {
     );
   }
 
-  const visibleTasks = sortTasks(tasks.filter((task) => !task.done));
+  const visibleTasks = sortTasks(
+    tasks.filter((task) => !task.done || completingIds.has(task.id))
+  );
   const todayTasks = visibleTasks.filter((task) => task.deadline !== "tomorrow");
   const tomorrowTasks = visibleTasks.filter((task) => task.deadline === "tomorrow");
 
@@ -212,6 +238,7 @@ export default function Home() {
                   task={task}
                   onToggleDone={handleComplete}
                   animationDelayMs={index * STAGGER_STEP_MS}
+                  fading={fadingIds.has(task.id)}
                 />
               ))}
             </div>
@@ -227,6 +254,7 @@ export default function Home() {
                       task={task}
                       onToggleDone={handleComplete}
                       animationDelayMs={(todayTasks.length + index) * STAGGER_STEP_MS}
+                      fading={fadingIds.has(task.id)}
                     />
                   ))}
                 </div>

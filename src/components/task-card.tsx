@@ -10,10 +10,6 @@ const PRIORITY_LABEL: Record<Task["priority"], string> = {
   low: "Низький пріоритет",
 };
 
-// Native checkboxes (`appearance: auto`) ignore author `border-color` in most
-// browsers — only `accent-color` (the checked fill) is respected. So this is
-// `appearance-none` with the checked state (background + checkmark) drawn
-// entirely in CSS, not relying on native rendering for either state.
 const PRIORITY_CHECKBOX: Record<Task["priority"], string> = {
   high: "border-priority-high checked:border-priority-high checked:bg-priority-high",
   medium: "border-priority-medium checked:border-priority-medium checked:bg-priority-medium",
@@ -33,9 +29,12 @@ const LABEL_TEXT: Record<Task["label"], string> = {
   personal: "Особисте",
 };
 
-// Grouping into "Сьогодні"/"Завтра" sections (page.tsx) already conveys
-// today/tomorrow, so the meta row only needs a deadline badge when it's
-// neither — an AI-parsed specific YYYY-MM-DD date.
+const TABULAR_NUMS_STYLE = {
+  fontVariantNumeric: "tabular-nums",
+  fontFeatureSettings: '"tnum" 1, "lnum" 1',
+  letterSpacing: 0,
+} as const;
+
 function formatDeadline(deadline: Task["deadline"]): string | null {
   if (!deadline || deadline === "today" || deadline === "tomorrow") return null;
   return deadline;
@@ -45,12 +44,14 @@ interface TaskCardProps {
   task: Task;
   onToggleDone: (id: string) => void;
   animationDelayMs?: number;
+  fading?: boolean;
 }
 
 export function TaskCard({
   task,
   onToggleDone,
   animationDelayMs = 0,
+  fading = false,
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [justChecked, setJustChecked] = useState(false);
@@ -63,7 +64,9 @@ export function TaskCard({
 
   return (
     <div
-      className="animate-card-in flex items-start gap-2.5 rounded-card bg-surface p-[14px_16px] transition-transform duration-120 active:scale-[0.99]"
+      className={`animate-card-in flex items-start gap-2.5 rounded-card bg-surface p-[14px_16px] transition-[transform,opacity] duration-150 active:scale-[0.99] ${
+        fading ? "opacity-0" : "opacity-100"
+      }`}
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <span className="-m-3 flex shrink-0 items-center p-3">
@@ -98,7 +101,7 @@ export function TaskCard({
             </span>
           )}
           {task.time && (
-            <span className="flex items-center gap-1 tabular-nums">
+            <span className="flex items-center gap-1" style={TABULAR_NUMS_STYLE}>
               <Clock size={14} strokeWidth={2} />
               {task.time}
             </span>
