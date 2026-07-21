@@ -83,6 +83,12 @@ export function CaptureSheet({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  // True from the moment a session starts winding down (manual stop, silence
+  // auto-stop, error, or the browser's own end-of-speech detection) until
+  // `onend` actually fires. iOS Safari can be slow to tear down its native
+  // audio session even after `onend` — this blocks a rapid re-tap from
+  // starting a new session before the old one has genuinely released the mic.
+  const isEndingRef = useRef(false);
 
   // Syncing isOpening to the `open` prop from an external trigger (the FAB),
   // not deriving it from other React state, so this isn't the "you might not
@@ -106,11 +112,15 @@ export function CaptureSheet({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Don't let the mic (or its analysis stream) stay hot if the sheet closes
-  // mid-recording.
+  // mid-recording. Release the analysis stream directly rather than only
+  // relying on `recognition.stop()` → `onend`, since that path is exactly
+  // what this bugfix no longer trusts unconditionally.
   useEffect(() => {
     if (!open && listening) {
       recognitionRef.current?.stop();
+      stopVolumeAnalysis();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, listening]);
 
   function stopVolumeAnalysis() {
@@ -181,85 +191,107 @@ export function CaptureSheet({
     }, SILENCE_TIMEOUT_MS);
   }
 
-  function getRecognition(): SpeechRecognitionLike {
-    if (!recognitionRef.current) {
-      const SpeechRecognitionCtor =
-        (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike })
-          .SpeechRecognition ??
-        (window as unknown as { webkitSpeechRecognition: new () => SpeechRecognitionLike })
-          .webkitSpeechRecognition;
-      const recognition = new SpeechRecognitionCtor();
-      recognition.lang = "uk-UA";
-      recognition.continuous = false; // повертаємо поведінку v12
-      recognition.interimResults = true;
-
-      recognition.onresult = (event) => {
-        resetSilenceTimer();
-
-        let interim = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscriptRef.current += `${result[0].transcript} `;
-          } else {
-            interim += result[0].transcript;
-          }
-        }
-
-        const combined = [
-          baseTextRef.current.trim(),
-          finalTranscriptRef.current.trim(),
-          interim,
-        ]
-          .filter((part) => part.length > 0)
-          .join(" ");
-        onTextChange(combined);
-      };
-
-      recognition.onerror = (event) => {
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-          setStatus("error");
-          setErrorMessage(MIC_PERMISSION_ERROR);
-        } else if (event.error === "no-speech") {
-          setStatus("error");
-          setErrorMessage(MIC_NO_SPEECH_ERROR);
-        } else {
-          setStatus("error");
-          setErrorMessage(MIC_GENERIC_ERROR);
-        }
-      };
-
-      recognition.onend = () => {
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-        stopVolumeAnalysis();
-        setListening(false);
-      };
-
-      recognitionRef.current = recognition;
+  // Called on every session-ending path (manual stop, silence auto-stop,
+  // error, browser auto-end, sheet close) — not just the "happy" one. iOS
+  // Safari has been observed to leave the microphone/audio session claimed
+  // after only a partial cleanup, which made the second recording attempt
+  // silently fail.
+  function releaseVoiceSession() {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
+    stopVolumeAnalysis();
+  }
 
-    return recognitionRef.current;
+  // A fresh `SpeechRecognition` instance per attempt, never reused across
+  // sessions — reusing one `.start()`-ed-then-stopped instance is the other
+  // half of the iOS Safari "works once" bug this fixes.
+  function createRecognition(): SpeechRecognitionLike {
+    const SpeechRecognitionCtor =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike })
+        .SpeechRecognition ??
+      (window as unknown as { webkitSpeechRecognition: new () => SpeechRecognitionLike })
+        .webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "uk-UA";
+    recognition.continuous = false; // повертаємо поведінку v12
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      resetSilenceTimer();
+
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscriptRef.current += `${result[0].transcript} `;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+
+      const combined = [
+        baseTextRef.current.trim(),
+        finalTranscriptRef.current.trim(),
+        interim,
+      ]
+        .filter((part) => part.length > 0)
+        .join(" ");
+      onTextChange(combined);
+    };
+
+    recognition.onerror = (event) => {
+      releaseVoiceSession();
+
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        setStatus("error");
+        setErrorMessage(MIC_PERMISSION_ERROR);
+      } else if (event.error === "no-speech") {
+        setStatus("error");
+        setErrorMessage(MIC_NO_SPEECH_ERROR);
+      } else {
+        setStatus("error");
+        setErrorMessage(MIC_GENERIC_ERROR);
+      }
+    };
+
+    recognition.onend = () => {
+      releaseVoiceSession();
+      recognitionRef.current = null;
+      isEndingRef.current = false;
+      setListening(false);
+    };
+
+    return recognition;
   }
 
   function handleToggleMic() {
-    const recognition = getRecognition();
-
-    if (listening) {
-      recognition.stop();
+    // `isEndingRef` (a ref, always current) rather than `listening` (state,
+    // can lag a render behind a rapid double-tap) is the source of truth for
+    // "is a session active or still winding down" — that's the whole point
+    // of tracking it separately.
+    if (!isEndingRef.current) {
+      setStatus("idle");
+      setErrorMessage("");
+      baseTextRef.current = textRef.current;
+      finalTranscriptRef.current = "";
+      const recognition = createRecognition();
+      recognitionRef.current = recognition;
+      isEndingRef.current = true;
+      setListening(true);
+      recognition.start();
+      resetSilenceTimer();
+      void startVolumeAnalysis();
       return;
     }
 
-    setStatus("idle");
-    setErrorMessage("");
-    baseTextRef.current = textRef.current;
-    finalTranscriptRef.current = "";
-    setListening(true);
-    recognition.start();
-    resetSilenceTimer();
-    void startVolumeAnalysis();
+    // A session is active or already stopping — a tap here means "stop".
+    // If it's already stopping (onend hasn't fired yet), this is a harmless
+    // repeat `.stop()` call, not a new session starting on top of the old one.
+    if (listening) {
+      recognitionRef.current?.stop();
+    }
   }
 
   async function handleSubmit() {
