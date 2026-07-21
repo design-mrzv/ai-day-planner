@@ -190,7 +190,7 @@ export function CaptureSheet({
           .webkitSpeechRecognition;
       const recognition = new SpeechRecognitionCtor();
       recognition.lang = "uk-UA";
-      recognition.continuous = true;
+      recognition.continuous = false; // повертаємо поведінку v12
       recognition.interimResults = true;
 
       recognition.onresult = (event) => {
