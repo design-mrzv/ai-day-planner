@@ -22,40 +22,15 @@ interface CaptureSheetProps {
 }
 
 const OPENING_GUARD_MS = 300;
-const SILENCE_TIMEOUT_MS = 5000;
-
-// Minimal shape of what we actually use from the Web Speech API — no
-// official TS lib types exist for it, and pulling in a whole @types
-// package for a handful of fields isn't worth it.
-interface SpeechRecognitionAlternativeLike {
-  transcript: string;
-}
-interface SpeechRecognitionResultLike {
-  0: SpeechRecognitionAlternativeLike;
-  isFinal: boolean;
-}
-interface SpeechRecognitionEventLike {
-  resultIndex: number;
-  results: { length: number; [index: number]: SpeechRecognitionResultLike };
-}
-interface SpeechRecognitionErrorEventLike {
-  error: string;
-}
-interface SpeechRecognitionLike {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-}
+const SILENCE_TIMEOUT_MS = 3000;
+const VOLUME_THRESHOLD = 0.05;
+const MIN_RECORDING_MS = 500;
+const CANDIDATE_MIME_TYPES = ["audio/webm", "audio/mp4"];
 
 const MIC_PERMISSION_ERROR =
   "Немає доступу до мікрофона. Дозволь у налаштуваннях браузера";
 const MIC_NO_SPEECH_ERROR = "Не почув жодного слова. Спробуй ще раз";
-const MIC_GENERIC_ERROR = "Не вдалося розпізнати мову. Спробуй ще раз";
+const MIC_GENERIC_ERROR = "Не вдалося обробити запис. Спробуй ще раз";
 
 export function CaptureSheet({
   open,
@@ -69,26 +44,30 @@ export function CaptureSheet({
   const [errorMessage, setErrorMessage] = useState("");
   const [isOpening, setIsOpening] = useState(false);
   const [micSupported, setMicSupported] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [volumeReactive, setVolumeReactive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const textRef = useRef(text);
   textRef.current = text;
-  const baseTextRef = useRef("");
-  const finalTranscriptRef = useRef("");
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingStartRef = useRef<number | null>(null);
+  const lastLoudAtRef = useRef<number | null>(null);
+  // Separate from `lastLoudAtRef` (which only tracks *recent* silence for
+  // auto-stop) — this tracks whether the recording ever had any sound at
+  // all. Gemini doesn't reliably return an empty transcript for pure
+  // silence (observed: it hallucinated an unrelated sentence for a silent
+  // test clip), so we can't rely on the server's "no speech" detection —
+  // detect true silence client-side and skip the network call entirely.
+  const heardAnySoundRef = useRef(false);
   const ringRef = useRef<HTMLSpanElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioStreamRef = useRef<MediaStream | null>(null);
+  const analyserDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const rafRef = useRef<number | null>(null);
-  // True from the moment a session starts winding down (manual stop, silence
-  // auto-stop, error, or the browser's own end-of-speech detection) until
-  // `onend` actually fires. iOS Safari can be slow to tear down its native
-  // audio session even after `onend` — this blocks a rapid re-tap from
-  // starting a new session before the old one has genuinely released the mic.
-  const isEndingRef = useRef(false);
 
   // Syncing isOpening to the `open` prop from an external trigger (the FAB),
   // not deriving it from other React state, so this isn't the "you might not
@@ -101,38 +80,32 @@ export function CaptureSheet({
     return () => clearTimeout(timeoutId);
   }, [open]);
 
-  // Progressive enhancement: `window` (and the Speech Recognition API) only
-  // exists client-side, so support detection can't happen during the
+  // Progressive enhancement: `window` (and MediaRecorder) only exist
+  // client-side, so support detection can't happen during the
   // server-rendered pass — it has to run after mount.
   useEffect(() => {
-    const hasSpeechRecognition =
-      "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
-    setMicSupported(hasSpeechRecognition);
+    setMicSupported(typeof window !== "undefined" && "MediaRecorder" in window);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Don't let the mic (or its analysis stream) stay hot if the sheet closes
-  // mid-recording. Release the analysis stream directly rather than only
-  // relying on `recognition.stop()` → `onend`, since that path is exactly
-  // what this bugfix no longer trusts unconditionally.
+  // Don't let the mic stay hot if the sheet closes mid-recording.
   useEffect(() => {
-    if (!open && listening) {
-      recognitionRef.current?.stop();
-      stopVolumeAnalysis();
+    if (!open && recording) {
+      mediaRecorderRef.current?.stop();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, listening]);
+  }, [open, recording]);
 
-  function stopVolumeAnalysis() {
+  function releaseRecordingResources() {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
-    audioStreamRef.current = null;
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recordingStreamRef.current = null;
     void audioCtxRef.current?.close();
     audioCtxRef.current = null;
     analyserRef.current = null;
+    analyserDataRef.current = null;
     setVolumeReactive(false);
     if (ringRef.current) {
       ringRef.current.style.transform = "";
@@ -140,158 +113,154 @@ export function CaptureSheet({
     }
   }
 
-  async function startVolumeAnalysis() {
+  // Drives both the volume-reactive pulse ring and silence auto-stop from
+  // the same analyser — no separate `SpeechRecognition`-driven timer needed.
+  function tickVolume() {
+    const analyser = analyserRef.current;
+    const data = analyserDataRef.current;
+    if (!analyser || !data) return;
+
+    analyser.getByteTimeDomainData(data);
+    let sumSquares = 0;
+    for (let i = 0; i < data.length; i++) {
+      const normalized = (data[i] - 128) / 128;
+      sumSquares += normalized * normalized;
+    }
+    const level = Math.min(1, Math.sqrt(sumSquares / data.length) * 4);
+
+    if (ringRef.current) {
+      ringRef.current.style.transform = `scale(${1 + level * 0.5})`;
+      ringRef.current.style.opacity = String(0.4 * (1 - level * 0.3));
+    }
+
+    const now = performance.now();
+    if (level > VOLUME_THRESHOLD) {
+      lastLoudAtRef.current = now;
+      heardAnySoundRef.current = true;
+    }
+    if (
+      lastLoudAtRef.current !== null &&
+      now - lastLoudAtRef.current > SILENCE_TIMEOUT_MS
+    ) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    rafRef.current = requestAnimationFrame(tickVolume);
+  }
+
+  async function transcribeAndInsert(blob: Blob) {
+    setTranscribing(true);
+    setStatus("idle");
+    setErrorMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("audio", blob, "voice-input.webm");
+
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? MIC_GENERIC_ERROR);
+      }
+
+      const transcript = typeof data.text === "string" ? data.text.trim() : "";
+      const current = textRef.current;
+      onTextChange(current.trim() ? `${current} ${transcript}` : transcript);
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : MIC_GENERIC_ERROR);
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  function handleRecordingStopped(mimeType: string) {
+    releaseRecordingResources();
+    setRecording(false);
+
+    const chunks = audioChunksRef.current;
+    audioChunksRef.current = [];
+    const startedAt = recordingStartRef.current;
+    recordingStartRef.current = null;
+    const durationMs = startedAt !== null ? performance.now() - startedAt : 0;
+
+    // A recording this short is almost certainly an accidental tap, not an
+    // attempt to say something — ignore it silently rather than showing an
+    // error for something the user didn't really do.
+    if (durationMs < MIN_RECORDING_MS) return;
+
+    // Confirmed by testing: Gemini doesn't reliably return an empty
+    // transcript for pure silence (it can hallucinate unrelated text
+    // instead), so the server can't be trusted to catch "no speech" — check
+    // client-side, using the same volume analysis that drove the pulse
+    // ring, and skip the upload entirely.
+    if (!heardAnySoundRef.current) {
+      setStatus("error");
+      setErrorMessage(MIC_NO_SPEECH_ERROR);
+      return;
+    }
+
+    const blob = new Blob(chunks, { type: mimeType });
+    void transcribeAndInsert(blob);
+  }
+
+  async function startRecording() {
+    setStatus("idle");
+    setErrorMessage("");
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+
+      const mimeType = CANDIDATE_MIME_TYPES.find(
+        (type) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)
+      );
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        handleRecordingStopped(mimeType ?? recorder.mimeType ?? "audio/webm");
+      };
+
+      mediaRecorderRef.current = recorder;
+      heardAnySoundRef.current = false;
+      recorder.start();
+      recordingStartRef.current = performance.now();
+
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       ctx.createMediaStreamSource(stream).connect(analyser);
-
-      audioStreamRef.current = stream;
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
+      analyserDataRef.current = new Uint8Array(analyser.frequencyBinCount);
+      lastLoudAtRef.current = null;
       setVolumeReactive(true);
+      tickVolume();
 
-      const data = new Uint8Array(analyser.frequencyBinCount);
-
-      function tick() {
-        const currentAnalyser = analyserRef.current;
-        if (!currentAnalyser) return;
-
-        currentAnalyser.getByteTimeDomainData(data);
-        let sumSquares = 0;
-        for (let i = 0; i < data.length; i++) {
-          const normalized = (data[i] - 128) / 128;
-          sumSquares += normalized * normalized;
-        }
-        const level = Math.min(1, Math.sqrt(sumSquares / data.length) * 4);
-
-        if (ringRef.current) {
-          ringRef.current.style.transform = `scale(${1 + level * 0.5})`;
-          ringRef.current.style.opacity = String(0.4 * (1 - level * 0.3));
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-      }
-      tick();
+      setRecording(true);
     } catch {
-      // No separate analysis stream (permission race, unsupported browser,
-      // etc.) — the static CSS pulse-ring from v12 stays as the fallback.
-      setVolumeReactive(false);
+      setStatus("error");
+      setErrorMessage(MIC_PERMISSION_ERROR);
     }
-  }
-
-  function resetSilenceTimer() {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-    }
-    silenceTimerRef.current = setTimeout(() => {
-      recognitionRef.current?.stop();
-    }, SILENCE_TIMEOUT_MS);
-  }
-
-  // Called on every session-ending path (manual stop, silence auto-stop,
-  // error, browser auto-end, sheet close) — not just the "happy" one. iOS
-  // Safari has been observed to leave the microphone/audio session claimed
-  // after only a partial cleanup, which made the second recording attempt
-  // silently fail.
-  function releaseVoiceSession() {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    stopVolumeAnalysis();
-  }
-
-  // A fresh `SpeechRecognition` instance per attempt, never reused across
-  // sessions — reusing one `.start()`-ed-then-stopped instance is the other
-  // half of the iOS Safari "works once" bug this fixes.
-  function createRecognition(): SpeechRecognitionLike {
-    const SpeechRecognitionCtor =
-      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike })
-        .SpeechRecognition ??
-      (window as unknown as { webkitSpeechRecognition: new () => SpeechRecognitionLike })
-        .webkitSpeechRecognition;
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = "uk-UA";
-    recognition.continuous = false; // повертаємо поведінку v12
-    recognition.interimResults = true;
-
-    recognition.onresult = (event) => {
-      resetSilenceTimer();
-
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscriptRef.current += `${result[0].transcript} `;
-        } else {
-          interim += result[0].transcript;
-        }
-      }
-
-      const combined = [
-        baseTextRef.current.trim(),
-        finalTranscriptRef.current.trim(),
-        interim,
-      ]
-        .filter((part) => part.length > 0)
-        .join(" ");
-      onTextChange(combined);
-    };
-
-    recognition.onerror = (event) => {
-      releaseVoiceSession();
-
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setStatus("error");
-        setErrorMessage(MIC_PERMISSION_ERROR);
-      } else if (event.error === "no-speech") {
-        setStatus("error");
-        setErrorMessage(MIC_NO_SPEECH_ERROR);
-      } else {
-        setStatus("error");
-        setErrorMessage(MIC_GENERIC_ERROR);
-      }
-    };
-
-    recognition.onend = () => {
-      releaseVoiceSession();
-      recognitionRef.current = null;
-      isEndingRef.current = false;
-      setListening(false);
-    };
-
-    return recognition;
   }
 
   function handleToggleMic() {
-    // `isEndingRef` (a ref, always current) rather than `listening` (state,
-    // can lag a render behind a rapid double-tap) is the source of truth for
-    // "is a session active or still winding down" — that's the whole point
-    // of tracking it separately.
-    if (!isEndingRef.current) {
-      setStatus("idle");
-      setErrorMessage("");
-      baseTextRef.current = textRef.current;
-      finalTranscriptRef.current = "";
-      const recognition = createRecognition();
-      recognitionRef.current = recognition;
-      isEndingRef.current = true;
-      setListening(true);
-      recognition.start();
-      resetSilenceTimer();
-      void startVolumeAnalysis();
+    if (recording) {
+      mediaRecorderRef.current?.stop();
       return;
     }
-
-    // A session is active or already stopping — a tap here means "stop".
-    // If it's already stopping (onend hasn't fired yet), this is a harmless
-    // repeat `.stop()` call, not a new session starting on top of the old one.
-    if (listening) {
-      recognitionRef.current?.stop();
-    }
+    if (transcribing) return;
+    void startRecording();
   }
 
   async function handleSubmit() {
@@ -321,6 +290,12 @@ export function CaptureSheet({
     }
   }
 
+  const textareaPlaceholder = transcribing
+    ? "Розпізнаю..."
+    : recording && !text.trim()
+      ? "Говори, я слухаю..."
+      : "Пиши все підряд, ми в цьому розберемось...";
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} disablePointerDismissal={isOpening}>
       <DrawerContent
@@ -338,11 +313,7 @@ export function CaptureSheet({
               ref={textareaRef}
               value={text}
               onChange={(event) => onTextChange(event.target.value)}
-              placeholder={
-                listening && !text.trim()
-                  ? "Говори, я слухаю..."
-                  : "Пиши все підряд, ми в цьому розберемось..."
-              }
+              placeholder={textareaPlaceholder}
               rows={5}
               className="rounded-input border-accent-border bg-accent-tint pr-12 text-base text-text-primary placeholder:text-text-tertiary"
               disabled={status === "loading"}
@@ -351,13 +322,15 @@ export function CaptureSheet({
               <button
                 type="button"
                 onClick={handleToggleMic}
-                disabled={status === "loading"}
-                aria-label={listening ? "Зупинити голосове введення" : "Голосове введення"}
+                disabled={status === "loading" || transcribing}
+                aria-label={recording ? "Зупинити голосове введення" : "Голосове введення"}
                 className={`absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-                  listening ? "bg-accent text-white" : "bg-transparent text-text-tertiary"
+                  recording || transcribing
+                    ? "bg-accent text-white"
+                    : "bg-transparent text-text-tertiary"
                 }`}
               >
-                {listening && (
+                {recording && (
                   <span
                     ref={ringRef}
                     className={`absolute inset-0 rounded-full bg-accent-tint ${
@@ -365,7 +338,24 @@ export function CaptureSheet({
                     }`}
                   />
                 )}
-                <Mic size={22} strokeWidth={2} className="relative" />
+                {transcribing ? (
+                  <span className="relative flex items-center gap-1">
+                    <span
+                      className="h-1 w-1 animate-dot-pulse rounded-full bg-current"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="h-1 w-1 animate-dot-pulse rounded-full bg-current"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <span
+                      className="h-1 w-1 animate-dot-pulse rounded-full bg-current"
+                      style={{ animationDelay: "300ms" }}
+                    />
+                  </span>
+                ) : (
+                  <Mic size={22} strokeWidth={2} className="relative" />
+                )}
               </button>
             )}
           </div>
