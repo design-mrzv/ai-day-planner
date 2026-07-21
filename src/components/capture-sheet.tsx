@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ParsedTask } from "@/lib/types";
+import { DayMode, ParsedTask } from "@/lib/types";
 
 interface CaptureSheetProps {
   open: boolean;
@@ -18,6 +18,7 @@ interface CaptureSheetProps {
   text: string;
   onTextChange: (text: string) => void;
   onParsed: (tasks: ParsedTask[]) => void;
+  dayMode: DayMode;
 }
 
 const OPENING_GUARD_MS = 300;
@@ -62,6 +63,7 @@ export function CaptureSheet({
   text,
   onTextChange,
   onParsed,
+  dayMode,
 }: CaptureSheetProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -268,7 +270,7 @@ export function CaptureSheet({
       const response = await fetch("/api/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, mode: dayMode }),
       });
 
       const data = await response.json();

@@ -1,6 +1,7 @@
 export type Priority = "high" | "medium" | "low";
 export type Label = "work" | "personal";
 export type Deadline = "today" | "tomorrow" | string | null;
+export type DayMode = "focus" | "admin";
 
 export interface ParsedTask {
   title: string;

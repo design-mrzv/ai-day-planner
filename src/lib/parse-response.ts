@@ -4,6 +4,7 @@ const PRIORITIES: Priority[] = ["high", "medium", "low"];
 const LABELS: Label[] = ["work", "personal"];
 
 export class ParseError extends Error {}
+export class NoTasksFoundError extends ParseError {}
 
 export function extractJsonArray(rawText: string): unknown[] {
   const stripped = rawText
@@ -52,7 +53,7 @@ export function toParsedTasks(rawArray: unknown[]): ParsedTask[] {
   }
 
   if (tasks.length === 0) {
-    throw new ParseError("No tasks found in AI response");
+    throw new NoTasksFoundError("No tasks found in AI response");
   }
 
   return tasks;

@@ -1,4 +1,4 @@
-import { Task } from "./types";
+import { DayMode, Task } from "./types";
 
 const TASKS_KEY = "tasks";
 const ONBOARDING_KEY = "onboarding_done";
@@ -53,5 +53,23 @@ export function saveInboxEnabled(value: boolean): void {
     localStorage.setItem(INBOX_KEY, value ? "true" : "false");
   } catch (error) {
     console.error("Failed to save inbox setting to localStorage", error);
+  }
+}
+
+const DAY_MODE_KEY = "day_mode";
+
+export function loadDayMode(): DayMode {
+  try {
+    return localStorage.getItem(DAY_MODE_KEY) === "admin" ? "admin" : "focus";
+  } catch {
+    return "focus";
+  }
+}
+
+export function saveDayMode(mode: DayMode): void {
+  try {
+    localStorage.setItem(DAY_MODE_KEY, mode);
+  } catch (error) {
+    console.error("Failed to save day mode to localStorage", error);
   }
 }

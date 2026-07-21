@@ -9,15 +9,17 @@ import { SettingsScreen } from "@/components/settings-screen";
 import { InboxScreen } from "@/components/inbox-screen";
 import { UndoToast } from "@/components/undo-toast";
 import {
+  loadDayMode,
   loadInboxEnabled,
   loadOnboardingDone,
   loadTasks,
+  saveDayMode,
   saveInboxEnabled,
   saveOnboardingDone,
   saveTasks,
 } from "@/lib/storage";
 import { sortTasks } from "@/lib/sort-tasks";
-import { ParsedTask, Task } from "@/lib/types";
+import { DayMode, ParsedTask, Task } from "@/lib/types";
 
 type Screen = "today" | "settings" | "inbox";
 
@@ -48,6 +50,7 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [inboxEnabled, setInboxEnabled] = useState<boolean | null>(null);
+  const [dayMode, setDayMode] = useState<DayMode | null>(null);
   const [screen, setScreen] = useState<Screen>("today");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [captureText, setCaptureText] = useState("");
@@ -65,6 +68,7 @@ export default function Home() {
     setTasks(loadTasks());
     setOnboardingDone(loadOnboardingDone());
     setInboxEnabled(loadInboxEnabled());
+    setDayMode(loadDayMode());
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -162,7 +166,17 @@ export default function Home() {
     setInboxEnabled(value);
   }
 
-  if (tasks === null || onboardingDone === null || inboxEnabled === null) {
+  function handleChangeDayMode(mode: DayMode) {
+    saveDayMode(mode);
+    setDayMode(mode);
+  }
+
+  if (
+    tasks === null ||
+    onboardingDone === null ||
+    inboxEnabled === null ||
+    dayMode === null
+  ) {
     return null;
   }
 
@@ -182,6 +196,8 @@ export default function Home() {
       <SettingsScreen
         inboxEnabled={inboxEnabled}
         onToggleInbox={handleToggleInboxSetting}
+        dayMode={dayMode}
+        onChangeDayMode={handleChangeDayMode}
         onBack={() => setScreen("today")}
       />
     );
@@ -294,6 +310,7 @@ export default function Home() {
         text={captureText}
         onTextChange={setCaptureText}
         onParsed={handleParsed}
+        dayMode={dayMode}
       />
     </div>
   );
