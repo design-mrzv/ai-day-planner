@@ -21,7 +21,7 @@ interface CaptureSheetProps {
 }
 
 const OPENING_GUARD_MS = 300;
-const SILENCE_TIMEOUT_MS = 3000;
+const SILENCE_TIMEOUT_MS = 5000;
 
 // Minimal shape of what we actually use from the Web Speech API — no
 // official TS lib types exist for it, and pulling in a whole @types
