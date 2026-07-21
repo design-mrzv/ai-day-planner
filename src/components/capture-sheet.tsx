@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Mic } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -21,6 +22,31 @@ interface CaptureSheetProps {
 
 const OPENING_GUARD_MS = 300;
 
+// Minimal shape of what we actually use from the Web Speech API — no
+// official TS lib types exist for it, and pulling in a whole @types
+// package for three fields isn't worth it.
+interface SpeechRecognitionResultLike {
+  results: { [index: number]: { [index: number]: { transcript: string } } };
+}
+interface SpeechRecognitionErrorLike {
+  error: string;
+}
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((event: SpeechRecognitionResultLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
+  onend: (() => void) | null;
+}
+
+const MIC_PERMISSION_ERROR =
+  "Немає доступу до мікрофона. Дозволь у налаштуваннях браузера";
+const MIC_NO_SPEECH_ERROR = "Не почув жодного слова. Спробуй ще раз";
+const MIC_GENERIC_ERROR = "Не вдалося розпізнати мову. Спробуй ще раз";
+
 export function CaptureSheet({
   open,
   onOpenChange,
@@ -31,7 +57,12 @@ export function CaptureSheet({
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [isOpening, setIsOpening] = useState(false);
+  const [micSupported, setMicSupported] = useState(false);
+  const [listening, setListening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const textRef = useRef(text);
+  textRef.current = text;
 
   // Syncing isOpening to the `open` prop from an external trigger (the FAB),
   // not deriving it from other React state, so this isn't the "you might not
@@ -43,7 +74,72 @@ export function CaptureSheet({
     const timeoutId = setTimeout(() => setIsOpening(false), OPENING_GUARD_MS);
     return () => clearTimeout(timeoutId);
   }, [open]);
+
+  // Progressive enhancement: `window` (and the Speech Recognition API) only
+  // exists client-side, so support detection can't happen during the
+  // server-rendered pass — it has to run after mount.
+  useEffect(() => {
+    const hasSpeechRecognition =
+      "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+    setMicSupported(hasSpeechRecognition);
+  }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  function getRecognition(): SpeechRecognitionLike {
+    if (!recognitionRef.current) {
+      const SpeechRecognitionCtor =
+        (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike })
+          .SpeechRecognition ??
+        (window as unknown as { webkitSpeechRecognition: new () => SpeechRecognitionLike })
+          .webkitSpeechRecognition;
+      const recognition = new SpeechRecognitionCtor();
+      recognition.lang = "uk-UA";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const current = textRef.current;
+        onTextChange(current.trim() ? `${current} ${transcript}` : transcript);
+      };
+
+      recognition.onerror = (event) => {
+        setListening(false);
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          setStatus("error");
+          setErrorMessage(MIC_PERMISSION_ERROR);
+        } else if (event.error === "no-speech") {
+          setStatus("error");
+          setErrorMessage(MIC_NO_SPEECH_ERROR);
+        } else {
+          setStatus("error");
+          setErrorMessage(MIC_GENERIC_ERROR);
+        }
+      };
+
+      recognition.onend = () => {
+        setListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return recognitionRef.current;
+  }
+
+  function handleToggleMic() {
+    const recognition = getRecognition();
+
+    if (listening) {
+      recognition.stop();
+      return;
+    }
+
+    setStatus("idle");
+    setErrorMessage("");
+    setListening(true);
+    recognition.start();
+  }
 
   async function handleSubmit() {
     setStatus("loading");
@@ -84,15 +180,37 @@ export function CaptureSheet({
           </DrawerTitle>
         </DrawerHeader>
         <div className="flex flex-col gap-3 px-4 pb-6">
-          <Textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(event) => onTextChange(event.target.value)}
-            placeholder="Пиши все підряд, ми в цьому розберемось..."
-            rows={5}
-            className="rounded-input border-accent-border bg-accent-tint text-base text-text-primary placeholder:text-text-tertiary"
-            disabled={status === "loading"}
-          />
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(event) => onTextChange(event.target.value)}
+              placeholder={
+                listening && !text.trim()
+                  ? "Говори, я слухаю..."
+                  : "Пиши все підряд, ми в цьому розберемось..."
+              }
+              rows={5}
+              className="rounded-input border-accent-border bg-accent-tint pr-11 text-base text-text-primary placeholder:text-text-tertiary"
+              disabled={status === "loading"}
+            />
+            {micSupported && (
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                disabled={status === "loading"}
+                aria-label={listening ? "Зупинити голосове введення" : "Голосове введення"}
+                className={`absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                  listening ? "bg-accent text-white" : "bg-transparent text-text-tertiary"
+                }`}
+              >
+                {listening && (
+                  <span className="animate-mic-pulse-ring absolute inset-0 rounded-full bg-accent-tint" />
+                )}
+                <Mic size={16} strokeWidth={2} className="relative" />
+              </button>
+            )}
+          </div>
           {status === "error" && (
             // Parent's `gap-3` already adds 12px above this element;
             // -mt-1 (-4px) nets exactly the 8px the design spec calls for.
