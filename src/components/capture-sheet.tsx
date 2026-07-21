@@ -21,14 +21,23 @@ interface CaptureSheetProps {
 }
 
 const OPENING_GUARD_MS = 300;
+const SILENCE_TIMEOUT_MS = 3000;
 
 // Minimal shape of what we actually use from the Web Speech API — no
 // official TS lib types exist for it, and pulling in a whole @types
-// package for three fields isn't worth it.
-interface SpeechRecognitionResultLike {
-  results: { [index: number]: { [index: number]: { transcript: string } } };
+// package for a handful of fields isn't worth it.
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
 }
-interface SpeechRecognitionErrorLike {
+interface SpeechRecognitionResultLike {
+  0: SpeechRecognitionAlternativeLike;
+  isFinal: boolean;
+}
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: { length: number; [index: number]: SpeechRecognitionResultLike };
+}
+interface SpeechRecognitionErrorEventLike {
   error: string;
 }
 interface SpeechRecognitionLike {
@@ -37,8 +46,8 @@ interface SpeechRecognitionLike {
   interimResults: boolean;
   start(): void;
   stop(): void;
-  onresult: ((event: SpeechRecognitionResultLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 }
 
@@ -59,10 +68,19 @@ export function CaptureSheet({
   const [isOpening, setIsOpening] = useState(false);
   const [micSupported, setMicSupported] = useState(false);
   const [listening, setListening] = useState(false);
+  const [volumeReactive, setVolumeReactive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const textRef = useRef(text);
   textRef.current = text;
+  const baseTextRef = useRef("");
+  const finalTranscriptRef = useRef("");
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ringRef = useRef<HTMLSpanElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   // Syncing isOpening to the `open` prop from an external trigger (the FAB),
   // not deriving it from other React state, so this isn't the "you might not
@@ -85,6 +103,82 @@ export function CaptureSheet({
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Don't let the mic (or its analysis stream) stay hot if the sheet closes
+  // mid-recording.
+  useEffect(() => {
+    if (!open && listening) {
+      recognitionRef.current?.stop();
+    }
+  }, [open, listening]);
+
+  function stopVolumeAnalysis() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    audioStreamRef.current = null;
+    void audioCtxRef.current?.close();
+    audioCtxRef.current = null;
+    analyserRef.current = null;
+    setVolumeReactive(false);
+    if (ringRef.current) {
+      ringRef.current.style.transform = "";
+      ringRef.current.style.opacity = "";
+    }
+  }
+
+  async function startVolumeAnalysis() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+
+      audioStreamRef.current = stream;
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+      setVolumeReactive(true);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      function tick() {
+        const currentAnalyser = analyserRef.current;
+        if (!currentAnalyser) return;
+
+        currentAnalyser.getByteTimeDomainData(data);
+        let sumSquares = 0;
+        for (let i = 0; i < data.length; i++) {
+          const normalized = (data[i] - 128) / 128;
+          sumSquares += normalized * normalized;
+        }
+        const level = Math.min(1, Math.sqrt(sumSquares / data.length) * 4);
+
+        if (ringRef.current) {
+          ringRef.current.style.transform = `scale(${1 + level * 0.5})`;
+          ringRef.current.style.opacity = String(0.4 * (1 - level * 0.3));
+        }
+
+        rafRef.current = requestAnimationFrame(tick);
+      }
+      tick();
+    } catch {
+      // No separate analysis stream (permission race, unsupported browser,
+      // etc.) — the static CSS pulse-ring from v12 stays as the fallback.
+      setVolumeReactive(false);
+    }
+  }
+
+  function resetSilenceTimer() {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
+    silenceTimerRef.current = setTimeout(() => {
+      recognitionRef.current?.stop();
+    }, SILENCE_TIMEOUT_MS);
+  }
+
   function getRecognition(): SpeechRecognitionLike {
     if (!recognitionRef.current) {
       const SpeechRecognitionCtor =
@@ -94,17 +188,33 @@ export function CaptureSheet({
           .webkitSpeechRecognition;
       const recognition = new SpeechRecognitionCtor();
       recognition.lang = "uk-UA";
-      recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.continuous = true;
+      recognition.interimResults = true;
 
       recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        const current = textRef.current;
-        onTextChange(current.trim() ? `${current} ${transcript}` : transcript);
+        resetSilenceTimer();
+
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscriptRef.current += `${result[0].transcript} `;
+          } else {
+            interim += result[0].transcript;
+          }
+        }
+
+        const combined = [
+          baseTextRef.current.trim(),
+          finalTranscriptRef.current.trim(),
+          interim,
+        ]
+          .filter((part) => part.length > 0)
+          .join(" ");
+        onTextChange(combined);
       };
 
       recognition.onerror = (event) => {
-        setListening(false);
         if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           setStatus("error");
           setErrorMessage(MIC_PERMISSION_ERROR);
@@ -118,6 +228,11 @@ export function CaptureSheet({
       };
 
       recognition.onend = () => {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        stopVolumeAnalysis();
         setListening(false);
       };
 
@@ -137,8 +252,12 @@ export function CaptureSheet({
 
     setStatus("idle");
     setErrorMessage("");
+    baseTextRef.current = textRef.current;
+    finalTranscriptRef.current = "";
     setListening(true);
     recognition.start();
+    resetSilenceTimer();
+    void startVolumeAnalysis();
   }
 
   async function handleSubmit() {
@@ -191,7 +310,7 @@ export function CaptureSheet({
                   : "Пиши все підряд, ми в цьому розберемось..."
               }
               rows={5}
-              className="rounded-input border-accent-border bg-accent-tint pr-11 text-base text-text-primary placeholder:text-text-tertiary"
+              className="rounded-input border-accent-border bg-accent-tint pr-12 text-base text-text-primary placeholder:text-text-tertiary"
               disabled={status === "loading"}
             />
             {micSupported && (
@@ -200,14 +319,19 @@ export function CaptureSheet({
                 onClick={handleToggleMic}
                 disabled={status === "loading"}
                 aria-label={listening ? "Зупинити голосове введення" : "Голосове введення"}
-                className={`absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+                className={`absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
                   listening ? "bg-accent text-white" : "bg-transparent text-text-tertiary"
                 }`}
               >
                 {listening && (
-                  <span className="animate-mic-pulse-ring absolute inset-0 rounded-full bg-accent-tint" />
+                  <span
+                    ref={ringRef}
+                    className={`absolute inset-0 rounded-full bg-accent-tint ${
+                      volumeReactive ? "" : "animate-mic-pulse-ring"
+                    }`}
+                  />
                 )}
-                <Mic size={16} strokeWidth={2} className="relative" />
+                <Mic size={22} strokeWidth={2} className="relative" />
               </button>
             )}
           </div>
