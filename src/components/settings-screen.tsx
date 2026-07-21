@@ -62,11 +62,11 @@ export function SettingsScreen({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64 p-3">
                 <p className="text-sm text-text-primary">
-                  <span className="font-semibold">Фокус-день</span> — AI пріоритезує
+                  <span className="font-semibold">Фокус-день</span> — пріоритезує
                   складні задачі, що потребують зосередження.
                 </p>
                 <p className="mt-2 text-sm text-text-primary">
-                  <span className="font-semibold">Адмін-день</span> — AI пріоритезує
+                  <span className="font-semibold">Адмін-день</span> — пріоритезує
                   дрібні швидкі справи: дзвінки, покупки, листування.
                 </p>
               </DropdownMenuContent>
